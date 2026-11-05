@@ -269,7 +269,9 @@ Rules: the FIRST option in every "o" array is the correct one. Wrong options are
   let pendingDrill = null, pendingBug = null;
   const VIEWS = {
     home: ["Base", viewHome],
+    dayone: ["Day One", viewDayOne],
     journey: ["Journey", viewJourney],
+    board: ["Board", viewBoard],
     quiz: ["Myth Busters", viewQuiz],
     drills: ["Incident Drills", viewDrills],
     bugs: ["Bug Hunt", viewBugs],
@@ -318,6 +320,7 @@ Rules: the FIRST option in every "o" array is the correct one. Wrong options are
   function nextStep() {
     const n = currentStep(), st = PLAN[n - 1];
     const lab = t => `Step ${n}: ${t}`;
+    if (n === 1 && ONBOARD.some((o, i) => !(S.setup || {})["ob:" + i])) return { label: "Start Day One: you've just been hired", r: "dayone", step: 1 };
     if (n === 1) return count(S.cards) < 15 ? { label: lab("learn the words"), r: "cards", step: n } : { label: lab("open the Blueprints"), r: "blueprints", step: n };
     if (n === 2) { const s = JOURNEY.find(x => !S.journey[x.id]); return { label: lab(s ? `Journey, ${s.title}` : st.t), r: "journey", step: n }; }
     if (n === 4) return { label: lab(st.t), r: S.pipe < PIPE.length ? "gates" : count(S.states) < 2 ? "states" : "rollback", step: n };
@@ -353,7 +356,7 @@ Rules: the FIRST option in every "o" array is the correct one. Wrong options are
       { k: "Welcome", body: `
         <div class="eyebrow">Mobile DevOps interview trainer</div>
         <h2 id="introTitle" class="in-title">Signed <span class="amp">&amp;</span> Shipped</h2>
-        <p class="in-lede">A game that teaches the whole road from a line of code to an app on someone's phone, in the order it really happens, so you can explain it in a Senior Mobile DevOps interview.</p>
+        <p class="in-lede">You've just been hired as RouteReady's Mobile DevOps engineer. Day One gets your computer and access set up; after that, your lead hands you tickets in the order they'd really arrive, from pinning tools to handling your first on-call page. No install is needed to play.</p>
         <div class="in-grid">
           <div><b>16</b><span>Journey stations, code to customer</span></div>
           <div><b>20</b><span>incident drills with STAR stories</span></div>
@@ -488,7 +491,7 @@ ${kv("application_id", "dev.lab.signed-and-shipped")}${kv("rank", r.name, "acc")
         ["sprints", "Sprints", "Seven 2-week sprints with deliverables and exit tests", `${SPRINTS.length} sprints`],
         ["docs", "Docs", "Reference tables, cheat sheets and official links", "reference"],
         ["interview", "Interview Room", "Timed answers, STAR stories, 8-minute walkthrough", `${count(S.iq)}/${IQ.length}`],
-        ["repo", "Reference Repo", "Workflows, Fastlane lanes, scripts and drill READMEs to clone", "76 files"]
+        ["repo", "Reference Repo", "Workflows, Fastlane lanes, real apps and local setup levels to clone", `${hasRepo() ? Object.keys(REPO).length : 0} files`]
       ].map(([k, n, d, p]) => `<a class="mode" href="#${k}"><span class="m-name">${n}</span><span class="m-desc">${d}</span><span class="m-prog">${p}</span></a>`).join("")}</div>
     </section>
 
@@ -568,12 +571,14 @@ ${kv("application_id", "dev.lab.signed-and-shipped")}${kv("rank", r.name, "acc")
       }).join("")}</ol>
       <article class="station">
         <div class="st-head">
-          <div><div class="eyebrow">Station ${journeyPos + 1} of ${JOURNEY.length} · ${esc(ph.name)} phase${(() => { const sp = SPRINTS.find(x => x.stations.includes(st.id)); return sp ? ` · Sprint ${sp.n} (${esc(sp.weeks)})` : ""; })()}</div><h2>${esc(st.title)}</h2></div>
+          <div><div class="eyebrow">${TICKETS[st.id] ? esc(TICKETS[st.id].id) + " · " : ""}Station ${journeyPos + 1} of ${JOURNEY.length} · ${esc(ph.name)} phase${(() => { const sp = SPRINTS.find(x => x.stations.includes(st.id)); return sp ? ` · Sprint ${sp.n} (${esc(sp.weeks)})` : ""; })()}</div><h2>${esc(st.title)}</h2></div>
           <div class="jdtags">${st.jd.map(j => `<span class="tag">${esc(j)}</span>`).join("")}</div>
         </div>
+        ${issueHTML(st)}
+        ${TICKETS[st.id] && TICKETS[st.id].needs.length ? `<details class="needs" ${TICKETS[st.id].needs.some(id => !(S.setup || {})["tool:" + id]) ? "open" : ""}><summary>What you need for this ticket (${TICKETS[st.id].needs.length} ${TICKETS[st.id].needs.length > 1 ? "tools" : "tool"})</summary><div class="toolgrid">${TICKETS[st.id].needs.map(id => toolCard(id, S.os || "mac")).join("")}</div></details>` : ""}
         <div class="st-grid">
           <div class="st-main">
-            <h3>What happens</h3><p>${esc(st.what)}</p>
+            <h3>Background: what happens</h3><p>${esc(st.what)}</p>
             <div class="eli"><div class="eli-k">Explain it like I'm 10</div><p>${esc(st.analogy)}</p></div>
             ${st.pic ? `<h3>The picture</h3><div class="diagram mini">${flowSVG(DIAGRAMS.find(d => d.id === st.pic))}</div><p class="sub"><button type="button" class="linkbtn" data-bp="${st.pic}">Open the full blueprint: ${esc(DIAGRAMS.find(d => d.id === st.pic).t)} →</button> It explains every box in order.</p>` : ""}
             <h3>Done when</h3><p class="done-when">${esc(st.done)}</p>
@@ -595,6 +600,7 @@ ${kv("application_id", "dev.lab.signed-and-shipped")}${kv("rank", r.name, "acc")
     $$(".stop", v).forEach(b => b.addEventListener("click", () => { journeyPos = +b.dataset.i; viewJourney(v); }));
     $$(".linkbtn[data-drill]", v).forEach(b => b.addEventListener("click", () => { pendingDrill = +b.dataset.drill; go("drills"); }));
     bindFileBtns(v);
+    bindToolChecks(v, null);
     $$("[data-bp]", v).forEach(b => b.addEventListener("click", () => { bpTab = b.dataset.bp; go("blueprints"); }));
     $("#prevSt", v).addEventListener("click", () => { journeyPos--; viewJourney(v); });
     $("#nextSt", v).addEventListener("click", () => { journeyPos++; viewJourney(v); });
@@ -1216,7 +1222,7 @@ ${kv("application_id", "dev.lab.signed-and-shipped")}${kv("rank", r.name, "acc")
     ["Backend", ["docker buildx imagetools inspect $IMAGE", "oasdiff breaking base.yaml contracts/openapi.yaml --fail-on ERR", "./scripts/smoke.sh $STAGING_API_URL"]]
   ];
   function viewDocs(v) {
-    const sec = [["glance", "Pipeline at a glance"], ["lanes", "Fastlane lane contract"], ["events", "Pipeline events and gates"], ["manifest", "Release manifest fields"], ["states", "Store states"], ["secrets", "Secrets: where they live"], ["cheats", "Command cheat sheets"], ["official", "Official docs"], ["repofiles", "Reference repo files"]];
+    const sec = [["local", "Run it locally"], ["glance", "Pipeline at a glance"], ["lanes", "Fastlane lane contract"], ["events", "Pipeline events and gates"], ["manifest", "Release manifest fields"], ["states", "Store states"], ["secrets", "Secrets: where they live"], ["cheats", "Command cheat sheets"], ["official", "Official docs"], ["repofiles", "Reference repo files"]];
     const tbl = (head, rows) => `<div class="tablewrap"><table class="jd"><thead><tr>${head.map(h => `<th>${esc(h)}</th>`).join("")}</tr></thead><tbody>${rows.map(r => `<tr>${r.map(c => `<td>${c}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
     v.innerHTML = `
       <header class="vhead"><div class="eyebrow">Docs</div><h1 class="vtitle">Reference</h1>
@@ -1224,20 +1230,29 @@ ${kv("application_id", "dev.lab.signed-and-shipped")}${kv("rank", r.name, "acc")
       <div class="docs">
         <nav class="toc" aria-label="On this page">${sec.map(([id, t], i) => `<button type="button" data-go="${id}"><span>${i + 1}</span>${esc(t)}</button>`).join("")}</nav>
         <div class="docbody">
-          <section id="d-glance"><h2>1. Pipeline at a glance</h2>${tbl(["#", "Station", "Phase", "First command / config", "Sprint"], JOURNEY.map((s, i) => [String(i + 1), `<button type="button" class="linkbtn" data-st="${i}">${esc(s.title)}</button>`, esc(PHASES.find(p => p.id === s.phase).name), `<code>${esc(String(s.tools[0]).split("\n")[0])}</code>`, (SPRINTS.find(sp => sp.stations.includes(s.id)) || {}).n ? "S" + SPRINTS.find(sp => sp.stations.includes(s.id)).n : "–"]))}</section>
-          <section id="d-lanes"><h2>2. Fastlane lane contract</h2>${tbl(["Lane", "Does", "Never"], [["<code>ios verify</code>", "Simulator build + tests, xcresult saved", "Load signing secrets"], ["<code>ios package</code>", "Preflight, setup_ci, match readonly, signed IPA + dSYMs, manifest", "Create or revoke certificates"], ["<code>ios beta</code>", "Verify checksum, upload existing IPA, record 'uploaded'", "Rebuild"], ["<code>ios promote</code>", "Submit existing build for review, phased release", "Upload a new binary"], ["<code>android verify</code>", "Lint, unit tests, debug build", "Load keystores"], ["<code>android package</code>", "Signed AAB with upload key, fingerprint preflight, manifest", "Use the debug key"], ["<code>android beta</code>", "Upload existing AAB to internal track", "Rebuild"], ["<code>android promote</code>", "Promote versionCode to production staged rollout", "Upload a new AAB"]])}</section>
-          <section id="d-events"><h2>3. Pipeline events and gates</h2>${tbl(["Trigger", "Work", "Must not", "Evidence"], [["Pull request", "Lint, unit, contract, integration, simulator/emulator tests", "Load signing keys, publish, deploy prod", "Test reports, logs"], ["Merge to main", "Trusted validation, immutable images, staging deploy, smoke", "Imply app-store release", "SHA, image digest, staging checks"], ["Explicit beta", "Allocate number, sign, archive, upload to test track", "Rebuild on retry, log secrets", "Checksums, symbols, states"], ["Promotion", "Verify candidate + approvals, promote existing build", "Recompile, bypass review", "Manifest, approval, state"], ["Nightly", "Device matrix, dependency scans, drills", "Unlimited macOS minutes", "Flake history, owners"]].map(r => r.map(esc)))}</section>
-          <section id="d-manifest"><h2>4. Release manifest fields</h2>${tbl(["Field", "Why"], [["application_id, platform", "Which app"], ["marketing_version, build_number", "Which release and binary"], ["git_sha, workflow_run_id, toolchain", "Where it came from"], ["artifact_sha256, symbol_artifact_ids", "Proves the bytes; enables crash symbolication"], ["backend_image_digest, api_contract_revision, tested_client_versions", "Compatibility evidence"], ["feature_flag_defaults, target_track, approvals", "What ships and who approved"], ["store_state, distribution_status", "Separate truthful states"], ["NEVER: tokens, passwords, keys, personal data", "It's shared evidence"]].map(r => r.map(esc)))}</section>
-          <section id="d-states"><h2>5. Store states</h2>${Object.values(STATES).map(tr => `<h3>${esc(tr.name)}</h3><ol class="mdlist">${tr.items.map(([a, b]) => `<li><b>${esc(a)}</b> — ${esc(b)}</li>`).join("")}</ol>`).join("")}</section>
-          <section id="d-secrets"><h2>6. Secrets: where they live</h2>${tbl(["Secret", "GitHub environment", "Used by"], [["MATCH_GIT_URL, MATCH_PASSWORD", "release-ios", "ios package (readonly match)"], ["ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8_BASE64", "release-ios, production", "ios beta, promote"], ["UPLOAD_KEYSTORE_BASE64 + passwords + alias", "release-android", "android package"], ["PLAY_JSON_KEY", "release-android, production", "android beta, promote"], ["(none)", "PR workflows", "PR jobs see no secrets"]].map(r => r.map(esc)))}</section>
-          <section id="d-cheats"><h2>7. Command cheat sheets</h2><div class="cheats">${CHEATS.map(([t, cmds]) => `<div class="copyable"><div class="so-head"><h3>${esc(t)}</h3><button type="button" class="btn small" data-copy="${esc(t)}">Copy</button></div><div class="code small"><pre class="copysrc">${cmds.map(esc).join("\n")}</pre></div></div>`).join("")}</div></section>
-          <section id="d-official"><h2>8. Official docs</h2><p class="sub">Links open in a new tab. Pages move; search the title if one 404s.</p><ul class="mdlist">${DOC_LINKS.map(([t, u]) => `<li><a href="${esc(u)}" target="_blank" rel="noopener">${esc(t)} ↗</a></li>`).join("")}</ul></section>
-          <section id="d-repofiles"><h2>9. Reference repo files</h2>${typeof REPO === "object" ? fileBtns(Object.keys(REPO).filter(p => !p.startsWith("drills/")), "") : "<p>Not loaded.</p>"}</section>
+          <section id="d-local"><h2>1. Run it locally: code to a debugged APK</h2>
+            <p>The reference repo includes small real apps (RouteReady Android in Kotlin, RouteReady iOS in SwiftUI, StayReady in React Native) and a mock API. Numbered scripts install a private toolchain into <code>.tools/</code>, so nothing goes system-wide and deleting that folder undoes everything. Levels get harder as you go and map to your MOB tickets and sprints.</p>
+            <div class="copyable"><div class="so-head"><h3>Quick start (Mac, Linux, or Windows via WSL)</h3><button type="button" class="btn small" data-copy-local>Copy</button></div><div class="code small"><pre class="copysrc">git clone https://github.com/BashFromOhio/signedandshipped && cd signedandshipped/reference/routeready-mobile-devops
+local/00-doctor.sh && local/01-install-jdk.sh && local/02-install-android-sdk.sh
+local/03-run-api.sh --bg && local/04-build-android.sh && local/05-emulator.sh && local/06-install-run.sh</pre></div></div>
+            ${tbl(["Level", "What you do", "Difficulty", "Time", "Sprint", "Ticket", "Run", "Guide"], LOCAL_LEVELS.map(l => [l.n, esc(l.t), l.d, esc(l.time), esc(l.sprint), esc(l.ticket), `<code>${esc(l.cmd)}</code>`, hasRepo() && REPO["docs/local/level-" + l.n + ".md"] ? `<button type="button" class="linkbtn" data-file="docs/local/level-${l.n}.md">level-${l.n}.md</button>` : "–"]))}
+            ${fileBtns(["docs/local/README.md", "docs/local/windows-wsl.md", "docs/local/troubleshooting.md", "local/README.md"], "")}</section>
+          <section id="d-glance"><h2>2. Pipeline at a glance</h2>${tbl(["#", "Station", "Phase", "First command / config", "Sprint"], JOURNEY.map((s, i) => [String(i + 1), `<button type="button" class="linkbtn" data-st="${i}">${esc(s.title)}</button>`, esc(PHASES.find(p => p.id === s.phase).name), `<code>${esc(String(s.tools[0]).split("\n")[0])}</code>`, (SPRINTS.find(sp => sp.stations.includes(s.id)) || {}).n ? "S" + SPRINTS.find(sp => sp.stations.includes(s.id)).n : "–"]))}</section>
+          <section id="d-lanes"><h2>3. Fastlane lane contract</h2>${tbl(["Lane", "Does", "Never"], [["<code>ios verify</code>", "Simulator build + tests, xcresult saved", "Load signing secrets"], ["<code>ios package</code>", "Preflight, setup_ci, match readonly, signed IPA + dSYMs, manifest", "Create or revoke certificates"], ["<code>ios beta</code>", "Verify checksum, upload existing IPA, record 'uploaded'", "Rebuild"], ["<code>ios promote</code>", "Submit existing build for review, phased release", "Upload a new binary"], ["<code>android verify</code>", "Lint, unit tests, debug build", "Load keystores"], ["<code>android package</code>", "Signed AAB with upload key, fingerprint preflight, manifest", "Use the debug key"], ["<code>android beta</code>", "Upload existing AAB to internal track", "Rebuild"], ["<code>android promote</code>", "Promote versionCode to production staged rollout", "Upload a new AAB"]])}</section>
+          <section id="d-events"><h2>4. Pipeline events and gates</h2>${tbl(["Trigger", "Work", "Must not", "Evidence"], [["Pull request", "Lint, unit, contract, integration, simulator/emulator tests", "Load signing keys, publish, deploy prod", "Test reports, logs"], ["Merge to main", "Trusted validation, immutable images, staging deploy, smoke", "Imply app-store release", "SHA, image digest, staging checks"], ["Explicit beta", "Allocate number, sign, archive, upload to test track", "Rebuild on retry, log secrets", "Checksums, symbols, states"], ["Promotion", "Verify candidate + approvals, promote existing build", "Recompile, bypass review", "Manifest, approval, state"], ["Nightly", "Device matrix, dependency scans, drills", "Unlimited macOS minutes", "Flake history, owners"]].map(r => r.map(esc)))}</section>
+          <section id="d-manifest"><h2>5. Release manifest fields</h2>${tbl(["Field", "Why"], [["application_id, platform", "Which app"], ["marketing_version, build_number", "Which release and binary"], ["git_sha, workflow_run_id, toolchain", "Where it came from"], ["artifact_sha256, symbol_artifact_ids", "Proves the bytes; enables crash symbolication"], ["backend_image_digest, api_contract_revision, tested_client_versions", "Compatibility evidence"], ["feature_flag_defaults, target_track, approvals", "What ships and who approved"], ["store_state, distribution_status", "Separate truthful states"], ["NEVER: tokens, passwords, keys, personal data", "It's shared evidence"]].map(r => r.map(esc)))}</section>
+          <section id="d-states"><h2>6. Store states</h2>${Object.values(STATES).map(tr => `<h3>${esc(tr.name)}</h3><ol class="mdlist">${tr.items.map(([a, b]) => `<li><b>${esc(a)}</b> — ${esc(b)}</li>`).join("")}</ol>`).join("")}</section>
+          <section id="d-secrets"><h2>7. Secrets: where they live</h2>${tbl(["Secret", "GitHub environment", "Used by"], [["MATCH_GIT_URL, MATCH_PASSWORD", "release-ios", "ios package (readonly match)"], ["ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8_BASE64", "release-ios, production", "ios beta, promote"], ["UPLOAD_KEYSTORE_BASE64 + passwords + alias", "release-android", "android package"], ["PLAY_JSON_KEY", "release-android, production", "android beta, promote"], ["(none)", "PR workflows", "PR jobs see no secrets"]].map(r => r.map(esc)))}</section>
+          <section id="d-cheats"><h2>8. Command cheat sheets</h2><div class="cheats">${CHEATS.map(([t, cmds]) => `<div class="copyable"><div class="so-head"><h3>${esc(t)}</h3><button type="button" class="btn small" data-copy="${esc(t)}">Copy</button></div><div class="code small"><pre class="copysrc">${cmds.map(esc).join("\n")}</pre></div></div>`).join("")}</div></section>
+          <section id="d-official"><h2>9. Official docs</h2><p class="sub">Links open in a new tab. Pages move; search the title if one 404s.</p><ul class="mdlist">${DOC_LINKS.map(([t, u]) => `<li><a href="${esc(u)}" target="_blank" rel="noopener">${esc(t)} ↗</a></li>`).join("")}</ul></section>
+          <section id="d-repofiles"><h2>10. Reference repo files</h2>${typeof REPO === "object" ? fileBtns(Object.keys(REPO).filter(p => !p.startsWith("drills/")), "") : "<p>Not loaded.</p>"}</section>
         </div>
       </div>`;
     $$(".toc button", v).forEach(b => b.addEventListener("click", () => { const el = $("#d-" + b.dataset.go, v); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); }));
     $$("[data-st]", v).forEach(b => b.addEventListener("click", () => { const firstOpen = JOURNEY.findIndex(s => !S.journey[s.id]); const i = +b.dataset.st; journeyPos = (firstOpen === -1 || i <= firstOpen) ? i : firstOpen; go("journey"); }));
     $$("[data-copy]", v).forEach(b => b.addEventListener("click", () => { const c = CHEATS.find(x => x[0] === b.dataset.copy); copyText(c[1].join("\n"), b); }));
+    const cl = $("[data-copy-local]", v); if (cl) cl.addEventListener("click", () => copyText($("#d-local .copysrc", v).textContent, cl));
+    $$(".linkbtn[data-file]", v).forEach(b => b.addEventListener("click", () => openFile(b.dataset.file)));
     bindFileBtns(v);
   }
 
@@ -1536,7 +1551,7 @@ ${kv("application_id", "dev.lab.signed-and-shipped")}${kv("rank", r.name, "acc")
     const bl = backlinks(repoFile);
     v.innerHTML = `
       <header class="vhead"><div class="eyebrow">Reference Repo · routeready-mobile-devops</div><h1 class="vtitle">The files behind every station</h1>
-      <p class="lede">Real workflows, Fastlane lanes, release scripts, contracts and drill write-ups. Versions are <code>&lt;VERIFY&gt;</code> placeholders and app code isn't included, so treat it as a reference to clone and fill in, not a verified pipeline.</p>
+      <p class="lede">Real workflows, Fastlane lanes, release scripts, contracts, drill write-ups, and now small real apps (Android, iOS, React Native) with numbered local setup levels in <code>local/</code> and guides in <code>docs/local/</code>. CI versions are <code>&lt;VERIFY&gt;</code> placeholders, so treat the pipeline as a reference to fill in.</p>
       <div class="row"><button type="button" class="btn primary" id="dlRepo" ${DL ? "" : "hidden"}>Download repo (.zip)</button><button type="button" class="btn ghost" id="toReadme">README</button><span class="sub">${paths.length} files</span></div></header>
       <div class="repo">
         <nav class="tree" aria-label="Repository files">${dirNames.map(d => `<details class="tdir" ${d === "" || d === openDir || openDir.startsWith(d + "/") ? "open" : ""}><summary>${esc(d || "/ (root)")}</summary>
@@ -1573,6 +1588,100 @@ ${kv("application_id", "dev.lab.signed-and-shipped")}${kv("rank", r.name, "acc")
       prompt: () => `${AI_CONTEXT}\n\nExplain this reference file from the learner's lab repo, ${repoFile}:\n\`\`\`\n${content.slice(0, 12000)}\n\`\`\`\nGive: what it's for and where it sits in the code-to-customer pipeline (1-2 sentences), the 3-5 lines that matter most and why, what to fill in before it runs (any <VERIFY> or <pin-...> placeholders), and a 10-year-old analogy. Under 250 words.` });
     aiBox($("#aiRepo", v), { label: "Ask", input: "Ask about this file, e.g. 'why is cancel-in-progress false here?'", cache: false,
       prompt: q => `${AI_CONTEXT}\n\nFile ${repoFile}:\n\`\`\`\n${content.slice(0, 12000)}\n\`\`\`\nQuestion: ${q}\nAnswer in under 200 words, quoting line contents where useful.` });
+  }
+
+
+  /* =========================================================
+     DAY ONE — you've just been hired
+     ========================================================= */
+  function toolCard(id, os) {
+    const t = TOOLS[id]; if (!t) return "";
+    if (os === "mac" && id === "wsl") return "";
+    if (os === "win" && id === "brew") return "";
+    const k = "tool:" + id, done = S.setup && S.setup[k];
+    return `<div class="toolc ${done ? "done" : ""}">
+      <div class="toolc-h"><b>${esc(t.name)}</b><span class="tag">${esc(t.cost)}</span></div>
+      <p>${esc(t.what)}</p>
+      <p class="sub"><b>Runs on:</b> ${esc(t.os)}</p>
+      <div class="code small"><pre>${esc(t.check)}</pre></div>
+      <label class="kp"><input type="checkbox" id="${k}" data-k="${k}" ${done ? "checked" : ""}><span>Installed / checked</span></label></div>`;
+  }
+  function bindToolChecks(root, rerender) {
+    $$("input[data-k^='tool:'], input[data-k^='ob:']", root).forEach(cb => cb.addEventListener("change", () => {
+      S.setup = S.setup || {};
+      if (cb.checked) { S.setup[cb.dataset.k] = true; addXP(5, "Setup step"); } else delete S.setup[cb.dataset.k];
+      save(); rerender && rerender();
+    }));
+  }
+  function viewDayOne(v) {
+    S.setup = S.setup || {}; const os = S.os || "mac";
+    v.innerHTML = `
+      <header class="vhead"><div class="eyebrow">Day One · ${esc(STORY.role)} at ${esc(STORY.company)}</div><h1 class="vtitle">You've just been hired</h1>
+      <p class="lede">${esc(STORY.intro)}</p></header>
+      <div class="filters" role="group" aria-label="Your computer"><span class="sub" style="align-self:center">Your computer:</span>${[["mac", "Mac"], ["win", "Windows"], ["linux", "Linux"]].map(([k, l]) => `<button type="button" class="chip ${os === k ? "on" : ""}" data-os="${k}">${l}</button>`).join("")}</div>
+      <ol class="obline">${ONBOARD.map((o, i) => { const k = "ob:" + i, done = S.setup[k]; return `<li class="${done ? "done" : ""}">
+        <div class="ob-day">${esc(o.day)}</div>
+        <div class="ob-body"><h2>${esc(o.t)}</h2><p>${esc(o.what)}</p>
+          <div class="eli"><div class="eli-k">Explain it like I'm 10</div><p>${esc(o.an)}</p></div>
+          ${o.tools.length ? `<div class="toolgrid">${o.tools.map(id => toolCard(id, os)).join("")}</div>` : ""}
+          <p class="ob-action"><b>Do this:</b> ${esc(o.action)}</p>
+          <label class="kp"><input type="checkbox" id="${k}" data-k="${k}" ${done ? "checked" : ""}><span>Done</span></label>
+        </div></li>`; }).join("")}</ol>
+      <section class="block"><div class="eli"><div class="eli-k">Want the real thing on your machine?</div><p>Dana's first assignment, for real: the reference repo has the actual apps and ${LOCAL_LEVELS.length} numbered setup levels that take a fresh laptop all the way to debugging a crashing APK. Everything installs inside the project folder.</p><div class="row" style="margin-top:8px"><button type="button" class="btn small" id="toLocal">Open "Run it locally" in Docs</button>${hasRepo() && REPO["docs/local/README.md"] ? `<button type="button" class="btn small ghost" data-file="docs/local/README.md">Read the guide</button>` : ""}</div></div></section>
+      <div class="row"><button type="button" class="btn primary" id="toTicket">Open your first ticket: ${esc(TICKETS[JOURNEY[0].id].id)} →</button></div>`;
+    $$("[data-os]", v).forEach(b => b.addEventListener("click", () => { S.os = b.dataset.os; save(); viewDayOne(v); }));
+    bindToolChecks(v, () => viewDayOne(v));
+    $("#toTicket", v).addEventListener("click", () => { journeyPos = 0; go("journey"); });
+    $("#toLocal", v).addEventListener("click", () => { go("docs"); setTimeout(() => { const el = document.getElementById("d-local"); if (el) el.scrollIntoView({ block: "start" }); }, 50); });
+    $$("[data-file]", v).forEach(b => b.addEventListener("click", () => openFile(b.dataset.file)));
+  }
+
+
+  /* =========================================================
+     JIRA-STYLE issues + board
+     ========================================================= */
+  const TYPE_ICON = { Story: "▣", Bug: "●", Spike: "◆", Task: "✓", Incident: "▲" };
+  function sprintOf(id) { const sp = SPRINTS.find(x => x.stations.includes(id)); return sp ? sp.n : null; }
+  function statusOf(id) { if (S.journey[id]) return "Done"; const i = JOURNEY.findIndex(s => !S.journey[s.id]); return JOURNEY[i] && JOURNEY[i].id === id ? "In Progress" : "To Do"; }
+  function issueHTML(st) {
+    const tk = TICKETS[st.id], is = ISSUE[st.id]; if (!tk || !is) return "";
+    const ep = EPICS[st.phase], sp = sprintOf(st.id), status = statusOf(st.id);
+    return `<div class="jira">
+      <div class="jr-top"><span class="jr-type t-${is.type.toLowerCase()}">${TYPE_ICON[is.type] || "▣"} ${esc(is.type)}</span><span class="jr-key">${esc(tk.id)}</span><span class="jr-status s-${status.replace(" ", "").toLowerCase()}">${esc(status)}</span></div>
+      <h2 class="jr-sum">${esc(st.title)}</h2>
+      <div class="jr-fields">
+        <div><span>Epic (feature)</span><b class="jr-epic c-${ep.color}">${esc(ep.key)} · ${esc(ep.name)}</b></div>
+        <div><span>Sprint</span><b>${sp ? "MOB Sprint " + sp : "Backlog"}</b></div>
+        <div><span>Story points</span><b>${is.pts}</b></div>
+        <div><span>Priority</span><b>${esc(is.prio)}</b></div>
+        <div><span>Assignee</span><b>${esc(JIRA.assignee)}</b></div>
+        <div><span>Reporter</span><b>${esc(JIRA.reporter)}</b></div>
+        <div class="wide"><span>Labels</span><b>${is.labels.map(l => `<i class="jr-label">${esc(l)}</i>`).join("")}</b></div>
+      </div>
+      <div class="jr-sec"><div class="bp-k">User story</div><p class="jr-story">${esc(is.story)}</p></div>
+      <div class="jr-sec"><div class="bp-k">Description (from ${esc(JIRA.reporter.split(" ")[0])})</div><p>${esc(tk.ask)}</p></div>
+      <div class="jr-sec"><div class="bp-k">Acceptance criteria</div><ul class="jr-ac">${is.ac.map(a => `<li>${esc(a)}</li>`).join("")}</ul></div>
+      <div class="jr-sec"><div class="bp-k">Sub-tasks</div><ol class="jr-sub">${is.sub.map((t, i) => `<li><span class="jr-key">${esc(tk.id)}-${i + 1}</span> ${esc(t)}</li>`).join("")}</ol></div>
+    </div>`;
+  }
+  let boardSprint = "all";
+  function viewBoard(v) {
+    const cols = ["To Do", "In Progress", "Done"];
+    const items = JOURNEY.map((st, i) => ({ st, i, is: ISSUE[st.id], tk: TICKETS[st.id], sp: sprintOf(st.id), status: statusOf(st.id) })).filter(x => boardSprint === "all" || String(x.sp) === boardSprint);
+    const pts = items.reduce((a, x) => a + x.is.pts, 0), donePts = items.filter(x => x.status === "Done").reduce((a, x) => a + x.is.pts, 0);
+    v.innerHTML = `
+      <header class="vhead"><div class="eyebrow">Board · ${esc(JIRA.project)} (${esc(JIRA.projectName)})</div><h1 class="vtitle">Your sprint board</h1>
+      <p class="lede">Every Journey ticket as a Jira-style issue. Epics are features, issues are user stories (plus a bug, a spike and an incident), each with story points and a sprint. Finish a ticket's checkpoint to move it to Done.</p></header>
+      <div class="filters" role="group" aria-label="Sprint"><button type="button" class="chip ${boardSprint === "all" ? "on" : ""}" data-sp="all">All sprints</button>${SPRINTS.map(sp => `<button type="button" class="chip ${boardSprint === String(sp.n) ? "on" : ""}" data-sp="${sp.n}">Sprint ${sp.n}</button>`).join("")}</div>
+      <div class="jr-burn"><b>${donePts}</b> of ${pts} story points done${boardSprint !== "all" ? ` · ${esc(SPRINTS.find(x => String(x.n) === boardSprint).goal)}` : ""}<span class="jr-bar"><i style="width:${pts ? Math.round(donePts / pts * 100) : 0}%"></i></span></div>
+      <div class="jr-epics">${Object.entries(EPICS).map(([ph, e]) => `<span class="jr-epic c-${e.color}">${esc(e.key)} · ${esc(e.name)}</span>`).join("")}</div>
+      <div class="board">${cols.map(c => `<div class="bcol"><div class="bcol-h">${c} <span>${items.filter(x => x.status === c).length}</span></div>
+        ${items.filter(x => x.status === c).map(x => `<button type="button" class="bcard2" data-i="${x.i}">
+          <span class="bc-sum">${esc(x.st.title)}</span>
+          <span class="jr-epic c-${EPICS[x.st.phase].color} small">${esc(EPICS[x.st.phase].name)}</span>
+          <span class="bc-foot"><span class="jr-type t-${x.is.type.toLowerCase()}">${TYPE_ICON[x.is.type]}</span><span class="jr-key">${esc(x.tk.id)}</span><span class="bc-sp">S${x.sp}</span><span class="bc-pts">${x.is.pts}</span></span></button>`).join("") || `<p class="sub">Nothing here.</p>`}</div>`).join("")}</div>`;
+    $$("[data-sp]", v).forEach(b => b.addEventListener("click", () => { boardSprint = b.dataset.sp; viewBoard(v); }));
+    $$(".bcard2", v).forEach(b => b.addEventListener("click", () => { const firstOpen = JOURNEY.findIndex(s => !S.journey[s.id]); const i = +b.dataset.i; journeyPos = (firstOpen === -1 || i <= firstOpen) ? i : firstOpen; if (i > journeyPos) toast("Finish earlier tickets first; showing the next open one."); go("journey"); }));
   }
 
   /* ---------- boot ---------- */

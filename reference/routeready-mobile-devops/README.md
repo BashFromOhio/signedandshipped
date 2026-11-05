@@ -4,7 +4,17 @@ Reference repository for the **Signed & Shipped** Mobile DevOps training game an
 It shows what each stage of a mobile release pipeline looks like as real files: GitHub Actions workflows, Fastlane lanes, release scripts, contracts, docs and drill write-ups.
 
 **What this is:** a starting point you clone, read and fill in.
-**What this is not:** a finished app or a verified pipeline. App code isn't included, tool versions are `<VERIFY>` placeholders, and action SHAs are `<pin-full-commit-sha>` placeholders. Nothing here has been run against real store accounts. See [docs/progress.md](docs/progress.md).
+**What this is not:** a verified production pipeline. CI tool versions are `<VERIFY>` placeholders and action SHAs are `<pin-full-commit-sha>` placeholders. Nothing here has been run against real store accounts. See [docs/progress.md](docs/progress.md).
+
+## ▶ Run everything on your machine
+Small real apps are included: **RouteReady** for Android (Kotlin) and iOS (SwiftUI), **StayReady** (React Native + Expo), and a mock API. Twelve numbered scripts install a private toolchain into `.tools/` (nothing system-wide) and take you from an empty laptop to **debugging a crashing APK**, signing a release, and 11 break-fix drills.
+
+**Start here: [docs/local/README.md](docs/local/README.md)** · scripts in [local/](local/README.md)
+
+```bash
+local/00-doctor.sh && local/01-install-jdk.sh && local/02-install-android-sdk.sh
+local/03-run-api.sh --bg && local/04-build-android.sh && local/05-emulator.sh && local/06-install-run.sh
+```
 
 RouteReady (SwiftUI + Kotlin + Spring Boot) is the main lab. Key StayReady (React Native + FastAPI) snippets live in `stayready/` for the tenant, idempotency and OTA drills.
 
@@ -13,7 +23,7 @@ RouteReady (SwiftUI + Kotlin + Spring Boot) is the main lab. Key StayReady (Reac
 2. Fill [docs/toolchain.md](docs/toolchain.md) from official compatibility docs, then replace every `<VERIFY>` and pin every action to a full commit SHA.
 3. Create the allocator branch: `git switch --orphan build-numbers && echo '{}' > allocations.json && git add . && git commit -m init && git push -u origin build-numbers`
 4. Set up branch protection and environments: [docs/branch-protection.md](docs/branch-protection.md).
-5. Add your app projects under `apps/ios` and `apps/android`, then run `bundle exec fastlane ios verify destination:"$(./scripts/pick-simulator.sh)"`.
+5. Run the apps locally first ([docs/local](docs/local/README.md)), then run `bundle exec fastlane ios verify destination:"$(./scripts/pick-simulator.sh)"`.
 6. Track every milestone as IMPLEMENTED / VERIFIED / SIMULATED / BLOCKED in [docs/progress.md](docs/progress.md).
 
 ## The Journey, file by file (code → customer)

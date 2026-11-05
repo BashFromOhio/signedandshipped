@@ -27,8 +27,8 @@ const PHASES = [
 
 /* ---------- THE GAME PLAN: how to tackle this, step by step ---------- */
 const PLAN = [
-  { n: 1, t: "Learn the words", modes: [["cards", "Terms"], ["blueprints", "Blueprints"], ["sprints", "Sprints"]],
-    what: "Read the Terms in pipeline order, open every Blueprint, and skim the Sprints plan. If 'upload key' and 'app signing key' sound like the same thing, every later step is harder.",
+  { n: 1, t: "Day One: set up and learn the words", modes: [["dayone", "Day One"], ["cards", "Terms"], ["blueprints", "Blueprints"], ["sprints", "Sprints"]],
+    what: "You were just hired. Do Day One (set up your computer, get access, read the repo), then read the Terms in pipeline order, open every Blueprint, and skim the Sprints plan. If 'upload key' and 'app signing key' sound like the same thing, every later step is harder.",
     an: "Learn the names of the tools before you build the treehouse.",
     done: "15 cards marked known and all 4 blueprints opened" },
   { n: 2, t: "Walk the Journey in order", modes: [["journey", "Journey"]],
@@ -994,22 +994,22 @@ const RUBRIC = ["Diagnosis uses evidence", "Containment is safe", "Fix addresses
 /* ---------- REFERENCE REPO LINKS (files live in repo.js) ---------- */
 const REPO_LINKS = {
   stations: {
-    toolchain: ["docs/toolchain.md", "scripts/print-toolchain.sh", "scripts/pick-simulator.sh", "Gemfile"],
-    branch: ["docs/adr/0001-trunk-based-development.md", "config/feature-flags.json", "docs/branch-protection.md"],
-    prci: [".github/workflows/pr-ci.yml", "fastlane/Fastfile"],
+    toolchain: ["docs/toolchain.md", "scripts/print-toolchain.sh", "scripts/pick-simulator.sh", "Gemfile", "docs/local/README.md", "docs/local/level-00.md", "docs/local/level-01.md", "docs/local/level-02.md", "local/02-install-android-sdk.sh"],
+    branch: ["docs/adr/0001-trunk-based-development.md", "config/feature-flags.json", "docs/branch-protection.md", "docs/local/level-06.md"],
+    prci: [".github/workflows/pr-ci.yml", "fastlane/Fastfile", "docs/local/level-04.md", "docs/local/level-05.md", "docs/local/level-09.md", "docs/local/level-10.md", "apps/android/app/build.gradle.kts"],
     gate: ["scripts/gate.sh", ".github/workflows/pr-ci.yml", "docs/branch-protection.md"],
     main: [".github/workflows/main.yml", "scripts/deploy-staging.sh", "scripts/smoke.sh", "infra/docker-compose.yml"],
-    backend: ["contracts/openapi.yaml", "contracts/fixtures/v1.3/route-status.json", "scripts/contract-check.sh", "services/api/db/migrations/README.md"],
-    preflight: ["scripts/release-preflight.sh", "scripts/allocate-build-number.sh", "config/apps.json"],
-    sign: ["fastlane/Fastfile", "fastlane/Matchfile", "scripts/signing-preflight-ios.sh", "apps/android/app/signing.gradle.kts", "scripts/verify-upload-cert.sh"],
-    manifest: ["scripts/write-manifest.sh", "evidence/release-manifest.schema.json", "scripts/verify-manifest.sh"],
+    backend: ["contracts/openapi.yaml", "contracts/fixtures/v1.3/route-status.json", "scripts/contract-check.sh", "services/api/db/migrations/README.md", "docs/local/level-03.md", "local/mock-api/server.py", "local/mock-api/check_contract.py"],
+    preflight: ["scripts/release-preflight.sh", "scripts/allocate-build-number.sh", "config/apps.json", "docs/local/level-08.md"],
+    sign: ["fastlane/Fastfile", "fastlane/Matchfile", "scripts/signing-preflight-ios.sh", "apps/android/app/build.gradle.kts", "scripts/verify-upload-cert.sh", "docs/local/level-08.md", "local/08-sign-release.sh"],
+    manifest: ["scripts/write-manifest.sh", "evidence/release-manifest.schema.json", "scripts/verify-manifest.sh", "docs/local/level-08.md"],
     beta: [".github/workflows/release-ios.yml", ".github/workflows/release-android.yml", "scripts/record-state.sh"],
-    candidate: ["scripts/preflight-env.sh", "config/apps.json"],
+    candidate: ["scripts/preflight-env.sh", "config/apps.json", "apps/android/app/build.gradle.kts"],
     approve: [".github/workflows/promote.yml", "docs/release-checklist.md"],
     rollout: ["docs/rollout.md", "config/feature-flags.json"],
-    observe: ["docs/observability.md", "scripts/upload-symbols.sh"],
-    incident: ["docs/incident-runbook.md", "docs/rollout.md"],
-    learn: ["drills/_template/incident.md", "evidence/README.md", "docs/progress.md"]
+    observe: ["docs/observability.md", "scripts/upload-symbols.sh", "docs/local/level-07.md", "apps/android/app/src/main/java/org/routeready/parent/ApiClient.kt"],
+    incident: ["docs/incident-runbook.md", "docs/rollout.md", "docs/local/level-07.md", "docs/local/level-12.md", "local/07-debug-apk.sh", "local/drill.sh"],
+    learn: ["drills/_template/incident.md", "evidence/README.md", "docs/progress.md", "docs/local/level-12.md"]
   },
   bugs: {
     b1: [".github/workflows/pr-ci.yml"], b2: [".github/workflows/pr-ci.yml"],
@@ -1033,3 +1033,151 @@ const REPO_LINKS = {
   }
 };
 const drillSlug = d => `drills/${String(d.n).padStart(2, "0")}-${d.t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}/README.md`;
+
+/* ---------- YOU'VE JUST BEEN HIRED: onboarding story + tickets ---------- */
+const STORY = {
+  company: "RouteReady (fictional)",
+  role: "Mobile DevOps Engineer",
+  lead: "Dana, Mobile Platform Lead",
+  intro: "You've just been hired onto RouteReady's mobile platform team. RouteReady makes a small app that shows parents where their child's school bus is (all data in this lab is fake). The app exists, but nobody owns how it gets built, signed, tested and shipped. That's your job now. Everything in this game happens in the order it would on the job: set up, get access, read the code, then work tickets from your lead."
+};
+
+const TOOLS = {
+  terminal: { name: "Terminal (command line)", what: "A text window where you type commands instead of clicking. Almost every DevOps tool is used from here.", os: "Mac: Terminal app · Windows: install WSL and use Ubuntu · Linux: built in", cost: "Free", check: "echo hello" },
+  wsl: { name: "WSL (Windows only)", what: "Windows Subsystem for Linux: a real Linux inside Windows, so the same commands work as on Mac/Linux and CI.", os: "Windows 10/11", cost: "Free", check: "wsl --install   # in PowerShell as admin, then restart" },
+  brew: { name: "Homebrew (Mac only)", what: "The Mac's package installer. One command installs tools like git, gh and jq.", os: "Mac", cost: "Free", check: "brew --version   # install from brew.sh" },
+  git: { name: "Git", what: "Saves every version of the code and lets a team work on it at once. Every change you make goes through it.", os: "All", cost: "Free", check: "git --version" },
+  github: { name: "GitHub account + repo access", what: "Where the code lives and where CI (GitHub Actions) runs. You'll open pull requests here.", os: "Web", cost: "Free", check: "gh auth status   # after installing the GitHub CLI" },
+  gh: { name: "GitHub CLI (gh)", what: "Do GitHub things (PRs, workflow runs) from the terminal.", os: "All", cost: "Free", check: "gh --version" },
+  editor: { name: "Code editor (VS Code)", what: "Where you read and edit YAML, Ruby and scripts. Any editor works.", os: "All", cost: "Free", check: "code --version" },
+  xcode: { name: "Xcode", what: "Apple's tool for building iPhone apps. xcodebuild is its command-line version that CI uses.", os: "Mac only. No Mac? GitHub Actions' hosted macOS runners can build it for you.", cost: "Free (Mac App Store)", check: "xcodebuild -version" },
+  android: { name: "Android Studio (SDK, emulator, JDK)", what: "Google's tool for building Android apps. Includes the Android SDK, an emulator, and a Java JDK that Gradle needs.", os: "Mac, Windows, Linux", cost: "Free", check: "java -version && ./gradlew --version" },
+  ruby: { name: "Ruby + Bundler", what: "Fastlane is written in Ruby. Bundler installs the exact gem versions in Gemfile.lock.", os: "Mac (brew install rbenv) · Windows (inside WSL) · Linux", cost: "Free", check: "ruby -v && bundle -v" },
+  fastlane: { name: "Fastlane", what: "Scripts ('lanes') that drive Xcode and Gradle: build, sign, upload. Same commands locally and in CI.", os: "Mac or Linux (WSL)", cost: "Free", check: "bundle exec fastlane --version" },
+  actions: { name: "GitHub Actions", what: "GitHub's robots that run your build/test/release steps on their computers every time code changes.", os: "Cloud, nothing to install", cost: "Free minutes for public repos; macOS minutes cost more on private repos", check: "gh run list" },
+  docker: { name: "Docker", what: "Packages the backend into a container image so it runs the same everywhere.", os: "Mac, Windows (Docker Desktop with WSL), Linux", cost: "Free for personal use", check: "docker --version" },
+  jq: { name: "jq", what: "Reads and edits JSON from the terminal. Used for release manifests.", os: "All", cost: "Free", check: "jq --version" },
+  apple: { name: "Apple Developer Program", what: "Required only to sign for the App Store and use TestFlight. Without it, mark those steps BLOCKED and keep going on the simulator.", os: "Web", cost: "Paid yearly membership (optional for this lab)", check: "Sign in at developer.apple.com" },
+  play: { name: "Google Play Console", what: "Required only to upload to Play. Without it, mark uploads BLOCKED and keep building signed AABs locally.", os: "Web", cost: "One-time registration fee (optional for this lab)", check: "Sign in at play.google.com/console" },
+  sentry: { name: "Crash reporting (e.g. Sentry)", what: "Collects crashes from phones and turns them into readable stack traces using symbols.", os: "Web + SDK in the app", cost: "Free tier available (optional)", check: "sentry-cli --version" }
+};
+
+const ONBOARD = [
+  { day: "Day 1 · Morning", t: "Meet the product and the team", what: "Dana walks you through RouteReady: an iOS app and an Android app, a Java backend, and a fake bus-GPS simulator. Releases today are done by hand from one person's laptop, and that person just left. Your job: make building, testing and shipping safe, repeatable and boring.", an: "You just joined a bakery where only one baker knew the recipe, and they quit. You're writing the recipe card so anyone can bake it.", tools: [], action: "Open the Blueprints page and read blueprint 1, 'Code to customer'. That's the whole road you'll build." },
+  { day: "Day 1 · Afternoon", t: "Set up your computer", what: "Install only what you need this week. Mac and Windows paths are below; Windows uses WSL so commands match Mac, Linux and CI. You do NOT need Xcode yet if you're on Windows: CI can build iOS on GitHub's Macs.", an: "Getting your desk, your pencils and your locker combination on the first day.", tools: ["terminal", "wsl", "brew", "git", "gh", "editor"], action: "Run each check command. If it prints a version, you're done with that tool." },
+  { day: "Day 2 · Morning", t: "Get access (and notice what you don't get)", what: "You get a GitHub account on the RouteReady repo and can open pull requests. You do NOT get the signing keys or store passwords; those live only in protected CI environments. That's on purpose, and it's one of the first things you'll explain in interviews.", an: "You get a key to the building, not the safe. The safe only opens for the night-shift robot with two managers watching.", tools: ["github"], action: "Clone the repo: git clone <repo-url> and open it in your editor." },
+  { day: "Day 2 · Afternoon", t: "Read the repo before touching it", what: "Open the Reference Repo tab here: README first, then docs/toolchain.md, the workflows in .github/workflows, and fastlane/Fastfile. Don't change anything yet; write down three questions.", an: "Reading the instruction booklet before you start building the LEGO set.", tools: [], action: "In the Reference Repo tab, read README.md and docs/progress.md." },
+  { day: "Day 3", t: "Your first ticket lands", what: "Dana assigns MOB-101. From here on, every Journey station is a ticket, in the order they'd reach you. Each ticket tells you which tools you need for it and introduces any new ones right there.", an: "First real homework assignment, with the supply list attached.", tools: [], action: "Go to the Journey and open ticket MOB-101." }
+];
+
+const TICKETS = {
+  toolchain: { id: "MOB-101", ask: "CI broke last month because GitHub changed the Mac it builds on, and nobody knew which Xcode we used. Before anyone builds anything, give me one page that says exactly which versions of every tool we use, and make CI print them.", needs: ["xcode", "android", "ruby", "jq"] },
+  branch: { id: "MOB-102", ask: "Product wants an 'ETA confidence' feature. Start it, but keep main releasable: small PRs and the feature hidden behind a flag until we say go.", needs: ["git", "editor"] },
+  prci: { id: "MOB-103", ask: "Outside contributors open PRs. Every PR must build and test both apps automatically, and none of those runs may ever see our signing keys.", needs: ["actions", "github"] },
+  gate: { id: "MOB-104", ask: "A PR that only changed the API contract has been 'waiting for checks' for two days. Fix our required check so it never hangs and never waves a broken PR through.", needs: ["actions"] },
+  main: { id: "MOB-105", ask: "Every merge to main should produce one exact backend image and deploy it to staging, with a quick smoke test. Merging must not mean 'release to the App Store'.", needs: ["docker"] },
+  backend: { id: "MOB-106", ask: "12% of parents still run app version 1.3. When we ship ETA confidence, the API change must not break them. Add old-client contract tests and ship the backend first.", needs: [] },
+  preflight: { id: "MOB-107", ask: "Two release jobs both used build number 57 and one upload got rejected. Make build numbers impossible to collide, and check everything before we sign.", needs: ["jq"] },
+  sign: { id: "MOB-108", ask: "Signing used to happen on the old engineer's laptop. Make CI sign both apps with keys it can only read, then throw the keys away after each job. If we don't have store accounts yet, get as far as you can and mark the rest BLOCKED.", needs: ["fastlane", "xcode", "android", "apple", "play"] },
+  manifest: { id: "MOB-109", ask: "An auditor asked us to prove the app we shipped is exactly the one we tested. Write that proof for every build, automatically.", needs: ["jq"] },
+  beta: { id: "MOB-110", ask: "Get 1.5 to internal testers on both platforms. If an upload fails, retry the same file, never rebuild. And stop the bot from saying 'released' when Apple is still processing.", needs: ["fastlane", "apple", "play"] },
+  candidate: { id: "MOB-111", ask: "QA tested the staging build. Is that enough to ship production? Tell me what we actually need to test, and add a check that the prod build points at prod.", needs: [] },
+  approve: { id: "MOB-112", ask: "No production release without a named approver, and no recompiling at promotion time.", needs: ["actions"] },
+  rollout: { id: "MOB-113", ask: "Roll 1.5 out gradually on both stores and keep ETA confidence off until we turn it on for one district first.", needs: ["apple", "play"] },
+  observe: { id: "MOB-114", ask: "Our crash reports are just memory addresses. Make them readable, tied to the exact release, and linked to the backend request that caused them.", needs: ["sentry"] },
+  incident: { id: "MOB-115", ask: "PAGE: crash rate on 1.5 just jumped. You're on call. Contain it for people who already installed it, then fix it.", needs: [] },
+  learn: { id: "MOB-116", ask: "Write the incident note for yesterday and the one change that stops it happening again. No made-up numbers.", needs: [] }
+};
+
+/* ---------- JIRA-STYLE: project MOB, epics = features, stories in sprints ---------- */
+const JIRA = { project: "MOB", projectName: "Mobile Platform", reporter: "Dana (Mobile Platform Lead)", assignee: "You" };
+const EPICS = {
+  build: { key: "MOB-1", name: "Safe pull-request pipeline", color: "info" },
+  integrate: { key: "MOB-2", name: "Trusted main + backend-first releases", color: "ok" },
+  package: { key: "MOB-3", name: "Reproducible signed packages", color: "accent" },
+  release: { key: "MOB-4", name: "Controlled store releases", color: "warn" },
+  operate: { key: "MOB-5", name: "Observability and incident response", color: "bad" }
+};
+const ISSUE = {
+  toolchain: { type: "Story", pts: 3, prio: "High", labels: ["ci", "toolchain"],
+    story: "As a mobile engineer, I want our exact tool versions recorded and printed by CI, so that a runner change can't silently break builds.",
+    ac: ["docs/toolchain.md lists Xcode, runner image, JDK, Gradle, AGP, Ruby and Fastlane versions with the date verified", "Gemfile.lock and the Gradle wrapper checksum are committed", "Every CI job prints its toolchain into the log"],
+    sub: ["Inventory current tool versions", "Write docs/toolchain.md", "Add scripts/print-toolchain.sh to CI", "Commit lockfiles"] },
+  branch: { type: "Story", pts: 2, prio: "Medium", labels: ["git", "feature-flags"],
+    story: "As a product team, we want unfinished features hidden behind flags, so that main is always releasable.",
+    ac: ["eta_confidence_enabled defaults to OFF", "Feature branch lives less than a few days and merges via PR", "No permanent develop branch"],
+    sub: ["Add flag to config/feature-flags.json", "Open small PR for the flag plumbing"] },
+  prci: { type: "Story", pts: 5, prio: "Highest", labels: ["ci", "security"],
+    story: "As a maintainer, I want every PR built and tested on both platforms without access to secrets, so that outside contributions can't leak signing keys.",
+    ac: ["pr-ci.yml uses on: pull_request with contents: read", "iOS simulator and Android tests run and upload reports even on failure", "A fork PR can't read a canary secret"],
+    sub: ["Write pr-ci.yml jobs", "Add pick-simulator.sh", "Add cache keys with lockfile hashes", "Run fork canary test"] },
+  gate: { type: "Bug", pts: 3, prio: "High", labels: ["ci"],
+    story: "As a developer, I want the required check to always report, so that contract-only PRs don't hang and broken PRs can't merge.",
+    ac: ["ci-gate runs with if: always() and fails on failure/cancelled", "Docs-only, contract-only and workflow-only PRs all report a status", "merge_group trigger present"],
+    sub: ["Move path filtering into a job", "Write scripts/gate.sh", "Test PR matrix"] },
+  main: { type: "Story", pts: 3, prio: "Medium", labels: ["backend", "docker"],
+    story: "As a release engineer, I want each merge to produce one immutable backend image deployed to staging, so that we test exactly what we'd ship.",
+    ac: ["Image tagged with commit SHA and deployed by digest", "Staging smoke test passes, including a negative auth test", "No app-store action on merge"],
+    sub: ["Write main.yml", "Write deploy-staging.sh", "Write smoke.sh"] },
+  backend: { type: "Story", pts: 5, prio: "High", labels: ["api", "compatibility"],
+    story: "As a parent on app 1.3, I want the app to keep working when the API changes, so that I'm never forced to update to see my bus.",
+    ac: ["Contract diff blocks breaking changes on PR", "1.3 and 1.4 fixtures pass against the candidate API", "Backend change ships before the app"],
+    sub: ["Record old-client fixtures", "Add contract-check.sh", "Make eta_confidence optional"] },
+  preflight: { type: "Bug", pts: 5, prio: "Highest", labels: ["release"],
+    story: "As a release engineer, I want build numbers allocated safely, so that two releases can never collide and retries never rebuild.",
+    ac: ["Parallel release runs get distinct numbers", "A rerun of the same run reuses its number", "Allocator never goes below the store's latest"],
+    sub: ["Create build-numbers branch", "Write allocate-build-number.sh", "Write release-preflight.sh", "Run race test"] },
+  sign: { type: "Story", pts: 8, prio: "Highest", labels: ["signing", "fastlane", "security"],
+    story: "As the team, we want CI to sign both apps with read-only keys that vanish after each job, so that releases don't depend on anyone's laptop.",
+    ac: ["iOS package lane uses setup_ci + match readonly and produces IPA + dSYMs, or is marked BLOCKED with the missing account named", "Android package lane produces a signed AAB and passes the upload-cert fingerprint check", "No key material remains after the job"],
+    sub: ["Write ios package lane", "Write signing-preflight-ios.sh", "Write android package lane", "Add verify-upload-cert.sh", "Add keychain/keystore cleanup"] },
+  manifest: { type: "Story", pts: 3, prio: "Medium", labels: ["release", "evidence"],
+    story: "As an auditor, I want a record proving the shipped binary is the tested one, so that releases are traceable.",
+    ac: ["release-manifest.json has SHA, checksum, symbols, backend digest", "Schema rejects secret fields", "verify-manifest.sh blocks checksum mismatches"],
+    sub: ["Write write-manifest.sh", "Write the schema", "Write verify-manifest.sh"] },
+  beta: { type: "Story", pts: 5, prio: "High", labels: ["release", "testflight", "play"],
+    story: "As a tester, I want 1.5 delivered to TestFlight and the Play internal track, so that I can test it before customers.",
+    ac: ["beta lanes upload the existing artifact only", "uploaded / processing / testers-available recorded separately", "Bot never says 'released' while processing"],
+    sub: ["Split package and beta jobs", "Write record-state.sh", "Write poll-store-state.sh"] },
+  candidate: { type: "Spike", pts: 2, prio: "Medium", labels: ["release", "qa"],
+    story: "As a release manager, I want to know what must be tested before production, so that we don't ship an untested binary.",
+    ac: ["Written answer: staging app ≠ production candidate", "preflight-env.sh checks the candidate's API URL", "Recommendation recorded in docs"],
+    sub: ["Investigate same-artifact limits", "Write preflight-env.sh"] },
+  approve: { type: "Story", pts: 3, prio: "High", labels: ["release", "governance"],
+    story: "As engineering leadership, we want a named approver for every production release, so that nothing ships by accident.",
+    ac: ["production environment requires reviewers", "promote.yml promotes the existing build only", "Approval recorded in the manifest"],
+    sub: ["Create production environment", "Write promote.yml", "Write promote lanes"] },
+  rollout: { type: "Story", pts: 3, prio: "High", labels: ["release", "feature-flags"],
+    story: "As product, we want 1.5 rolled out gradually with ETA confidence off, so that we can watch before everyone has it.",
+    ac: ["iOS phased release on; Android staged at 10%", "eta_confidence_enabled only for one pilot cohort", "Runbook explains pause/halt limits"],
+    sub: ["Configure phased/staged rollout", "Configure flag cohort", "Write docs/rollout.md"] },
+  observe: { type: "Story", pts: 5, prio: "Medium", labels: ["observability"],
+    story: "As an on-call engineer, I want readable crash reports linked to backend logs, so that I can find causes fast.",
+    ac: ["Exact dSYMs/mapping uploaded per build", "Crash shows release, build and source line", "Request ID correlates app crash with API logs"],
+    sub: ["Add upload-symbols.sh", "Add request_id logging", "Run controlled crash"] },
+  incident: { type: "Incident", pts: 3, prio: "Highest", labels: ["on-call", "incident"],
+    story: "As a parent with 1.5 installed, I want the app to stop crashing now, so that I can see my child's bus.",
+    ac: ["Flag turned off and phased release paused within the incident", "Crash rate for installed 1.5 returns to baseline", "Replacement build with a higher number shipped through the gates"],
+    sub: ["Contain (flag off, pause)", "Diagnose by cohort", "Ship replacement build", "Verify installed population"] },
+  learn: { type: "Task", pts: 1, prio: "Medium", labels: ["incident", "docs"],
+    story: "As the team, we want a short incident note and one prevention task, so that the same failure doesn't repeat.",
+    ac: ["Note uses relative times and links to evidence", "Root cause and rejected hypotheses listed", "Prevention ticket created with an owner"],
+    sub: ["Write incident note", "Create prevention ticket"] }
+};
+
+/* ---------- RUN IT LOCALLY: the numbered scripts in the reference repo (docs/local) ---------- */
+const LOCAL_LEVELS = [
+  { n: "00", t: "Check your machine", d: "★☆☆☆☆", time: "5 min", sprint: "1", ticket: "MOB-101", cmd: "local/00-doctor.sh", an: "Check the tires before the road trip." },
+  { n: "01", t: "Install a project-only JDK 17", d: "★☆☆☆☆", time: "5–10 min", sprint: "1", ticket: "MOB-101", cmd: "local/01-install-jdk.sh", an: "Everyone in class uses the same pencil, kept in the class box." },
+  { n: "02", t: "Android SDK + Gradle + wrapper", d: "★★☆☆☆", time: "10–20 min", sprint: "1", ticket: "MOB-101", cmd: "local/02-install-android-sdk.sh", an: "Just the stove, pans and recipe; not the whole fancy kitchen." },
+  { n: "03", t: "Run the API, prove old apps still work", d: "★☆☆☆☆", time: "10 min", sprint: "1", ticket: "MOB-106", cmd: "local/03-run-api.sh --bg", an: "Test the new TV with the old remote." },
+  { n: "04", t: "Build + test the debug APK like PR CI", d: "★★☆☆☆", time: "10–15 min", sprint: "1–2", ticket: "MOB-103", cmd: "local/04-build-android.sh", an: "Check spelling, redo the math, staple it: your rough draft." },
+  { n: "05", t: "Create and boot an emulator", d: "★★★☆☆", time: "15–30 min", sprint: "1", ticket: "MOB-103", cmd: "local/05-emulator.sh", an: "A pretend phone inside your computer." },
+  { n: "06", t: "Install, run and watch the app", d: "★★☆☆☆", time: "10 min", sprint: "1", ticket: "MOB-103", cmd: "local/06-install-run.sh", an: "Put the toy in the playroom, turn it on, listen to it." },
+  { n: "07", t: "Debug the APK: inspect, logcat, crash, jdb", d: "★★★★☆", time: "45–60 min", sprint: "6–7", ticket: "MOB-115", cmd: "local/07-debug-apk.sh crash", an: "Read what the toy says when it breaks, open it up, watch it in slow motion." },
+  { n: "08", t: "Sign a release, verify, write a manifest", d: "★★★★☆", time: "30–45 min", sprint: "3", ticket: "MOB-108", cmd: "local/08-sign-release.sh", an: "Wax seal, page number and a receipt stapled to the letter." },
+  { n: "09", t: "Run the CI lane locally with Fastlane", d: "★★★☆☆", time: "20–30 min", sprint: "2–3", ticket: "MOB-103", cmd: "local/09-fastlane.sh", an: "Follow the robot chef's recipe card at home." },
+  { n: "10", t: "iOS: generate, test, run on the Simulator (Mac)", d: "★★★★☆", time: "30–60 min", sprint: "1–2", ticket: "MOB-103", cmd: "local/10-ios.sh", an: "Same toy, Apple's playroom." },
+  { n: "11", t: "React Native: run StayReady", d: "★★★★☆", time: "30–45 min", sprint: "6–7", ticket: "MOB-110", cmd: "local/11-react-native.sh", an: "Your key opens your door only; ring three times, one pizza." },
+  { n: "12", t: "11 break-fix drills", d: "★★ → ★★★★★", time: "15–40 min each", sprint: "6–7", ticket: "MOB-116", cmd: "local/drill.sh list", an: "Fire drills before the real fire." }
+];

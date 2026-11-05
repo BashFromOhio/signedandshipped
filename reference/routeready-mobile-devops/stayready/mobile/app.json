@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "name": "StayReady",
+    "slug": "stayready-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "ios": { "bundleIdentifier": "org.stayready.guest", "supportsTablet": false },
+    "android": { "package": "org.stayready.guest" },
+    "extra": { "_comment": "Two fictional tenants share one app: Cedar Cove and Harbor House. Tenant comes from the sign-in token, never from a header the app sets (drill 17)." }
+  }
+}

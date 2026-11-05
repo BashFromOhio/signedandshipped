@@ -1,0 +1,52 @@
+# XcodeGen spec. `local/10-ios.sh` turns this into RouteReady.xcodeproj (generated, not committed).
+# Why: .xcodeproj files are huge and merge badly; a short YAML spec is reviewable (MOB-101/102).
+name: RouteReady
+options:
+  bundleIdPrefix: org.routeready
+  deploymentTarget:
+    iOS: "17.0"
+settings:
+  base:
+    MARKETING_VERSION: "1.5.0"
+    CURRENT_PROJECT_VERSION: "1"   # build number: set by the allocator / package lane (MOB-107)
+    SWIFT_VERSION: "5.0"
+targets:
+  RouteReady:
+    type: application
+    platform: iOS
+    sources: [RouteReady]
+    info:
+      path: RouteReady/Info.plist
+      properties:
+        CFBundleDisplayName: RouteReady
+        UILaunchScreen: {}
+        RRAPIBaseURL: $(RR_API_BASE_URL)
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true   # lets the Debug app call http://localhost (the mock API); HTTPS everywhere else
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: org.routeready.parent
+        GENERATE_INFOPLIST_FILE: NO
+      configs:
+        Debug:
+          RR_API_BASE_URL: "http://localhost:8080"     # the simulator shares your Mac's localhost
+        Release:
+          RR_API_BASE_URL: "https://api.routeready.example"
+  RouteReadyTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [RouteReadyTests]
+    dependencies:
+      - target: RouteReady
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  RouteReady:
+    build:
+      targets:
+        RouteReady: all
+        RouteReadyTests: [test]
+    test:
+      config: Debug
+      targets: [RouteReadyTests]
