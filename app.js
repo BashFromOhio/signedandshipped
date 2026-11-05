@@ -1236,7 +1236,22 @@ ${kv("application_id", "dev.lab.signed-and-shipped")}${kv("rank", r.name, "acc")
 local/00-doctor.sh && local/01-install-jdk.sh && local/02-install-android-sdk.sh
 local/03-run-api.sh --bg && local/04-build-android.sh && local/05-emulator.sh && local/06-install-run.sh</pre></div></div>
             ${tbl(["Level", "What you do", "Difficulty", "Time", "Sprint", "Ticket", "Run", "Guide"], LOCAL_LEVELS.map(l => [l.n, esc(l.t), l.d, esc(l.time), esc(l.sprint), esc(l.ticket), `<code>${esc(l.cmd)}</code>`, hasRepo() && REPO["docs/local/level-" + l.n + ".md"] ? `<button type="button" class="linkbtn" data-file="docs/local/level-${l.n}.md">level-${l.n}.md</button>` : "–"]))}
-            ${fileBtns(["docs/local/README.md", "docs/local/windows-wsl.md", "docs/local/troubleshooting.md", "local/README.md"], "")}</section>
+            ${fileBtns(["docs/local/README.md", "docs/local/windows-wsl.md", "docs/local/troubleshooting.md", "local/README.md"], "")}
+            <h3>Let your own Claude Code run and verify all of it</h3>
+            <p>The repo includes a Claude Code command, <code>/verify-local</code> (file: <code>.claude/commands/verify-local.md</code>). It runs every level in order, fixes what breaks, puts the Level 07 bug back afterwards, writes <code>docs/local/VERIFICATION.md</code>, and opens a pull request. It never installs anything system-wide without asking you first.</p>
+            <ol class="mdlist">
+              <li>Clone the repo (Mac/Linux Terminal, or Ubuntu on Windows via WSL, in your home folder, not <code>C:</code>).</li>
+              <li>Start Claude Code in that folder: <code>claude</code></li>
+              <li>Type <code>/verify-local</code>, optionally followed by notes, e.g. <code>/verify-local I'm on a Mac with Xcode</code>.</li>
+              <li>Approve its commands. The first run takes 30–90 minutes, mostly downloads (~2 GB).</li>
+              <li>It finishes with a pull-request link; the PR description is the report. Review it on GitHub and merge.</li>
+            </ol>
+            <div class="copyable"><div class="so-head"><h3>Copy these</h3><button type="button" class="btn small" data-copy-verify>Copy</button></div><div class="code small"><pre class="copysrc">cd ~
+git clone https://github.com/BashFromOhio/signedandshipped.git
+cd signedandshipped
+claude
+# then, inside Claude Code:
+/verify-local</pre></div></div></section>
           <section id="d-glance"><h2>2. Pipeline at a glance</h2>${tbl(["#", "Station", "Phase", "First command / config", "Sprint"], JOURNEY.map((s, i) => [String(i + 1), `<button type="button" class="linkbtn" data-st="${i}">${esc(s.title)}</button>`, esc(PHASES.find(p => p.id === s.phase).name), `<code>${esc(String(s.tools[0]).split("\n")[0])}</code>`, (SPRINTS.find(sp => sp.stations.includes(s.id)) || {}).n ? "S" + SPRINTS.find(sp => sp.stations.includes(s.id)).n : "–"]))}</section>
           <section id="d-lanes"><h2>3. Fastlane lane contract</h2>${tbl(["Lane", "Does", "Never"], [["<code>ios verify</code>", "Simulator build + tests, xcresult saved", "Load signing secrets"], ["<code>ios package</code>", "Preflight, setup_ci, match readonly, signed IPA + dSYMs, manifest", "Create or revoke certificates"], ["<code>ios beta</code>", "Verify checksum, upload existing IPA, record 'uploaded'", "Rebuild"], ["<code>ios promote</code>", "Submit existing build for review, phased release", "Upload a new binary"], ["<code>android verify</code>", "Lint, unit tests, debug build", "Load keystores"], ["<code>android package</code>", "Signed AAB with upload key, fingerprint preflight, manifest", "Use the debug key"], ["<code>android beta</code>", "Upload existing AAB to internal track", "Rebuild"], ["<code>android promote</code>", "Promote versionCode to production staged rollout", "Upload a new AAB"]])}</section>
           <section id="d-events"><h2>4. Pipeline events and gates</h2>${tbl(["Trigger", "Work", "Must not", "Evidence"], [["Pull request", "Lint, unit, contract, integration, simulator/emulator tests", "Load signing keys, publish, deploy prod", "Test reports, logs"], ["Merge to main", "Trusted validation, immutable images, staging deploy, smoke", "Imply app-store release", "SHA, image digest, staging checks"], ["Explicit beta", "Allocate number, sign, archive, upload to test track", "Rebuild on retry, log secrets", "Checksums, symbols, states"], ["Promotion", "Verify candidate + approvals, promote existing build", "Recompile, bypass review", "Manifest, approval, state"], ["Nightly", "Device matrix, dependency scans, drills", "Unlimited macOS minutes", "Flake history, owners"]].map(r => r.map(esc)))}</section>
@@ -1252,6 +1267,7 @@ local/03-run-api.sh --bg && local/04-build-android.sh && local/05-emulator.sh &&
     $$("[data-st]", v).forEach(b => b.addEventListener("click", () => { const firstOpen = JOURNEY.findIndex(s => !S.journey[s.id]); const i = +b.dataset.st; journeyPos = (firstOpen === -1 || i <= firstOpen) ? i : firstOpen; go("journey"); }));
     $$("[data-copy]", v).forEach(b => b.addEventListener("click", () => { const c = CHEATS.find(x => x[0] === b.dataset.copy); copyText(c[1].join("\n"), b); }));
     const cl = $("[data-copy-local]", v); if (cl) cl.addEventListener("click", () => copyText($("#d-local .copysrc", v).textContent, cl));
+    const cv = $("[data-copy-verify]", v); if (cv) cv.addEventListener("click", () => copyText(cv.closest(".copyable").querySelector(".copysrc").textContent, cv));
     $$(".linkbtn[data-file]", v).forEach(b => b.addEventListener("click", () => openFile(b.dataset.file)));
     bindFileBtns(v);
   }
