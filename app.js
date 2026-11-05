@@ -269,6 +269,7 @@ Rules: the FIRST option in every "o" array is the correct one. Wrong options are
   let pendingDrill = null, pendingBug = null;
   const VIEWS = {
     home: ["Base", viewHome],
+    dayone: ["Day One", viewDayOne],
     journey: ["Journey", viewJourney],
     quiz: ["Myth Busters", viewQuiz],
     drills: ["Incident Drills", viewDrills],
@@ -318,6 +319,7 @@ Rules: the FIRST option in every "o" array is the correct one. Wrong options are
   function nextStep() {
     const n = currentStep(), st = PLAN[n - 1];
     const lab = t => `Step ${n}: ${t}`;
+    if (n === 1 && ONBOARD.some((o, i) => !(S.setup || {})["ob:" + i])) return { label: "Start Day One: you've just been hired", r: "dayone", step: 1 };
     if (n === 1) return count(S.cards) < 15 ? { label: lab("learn the words"), r: "cards", step: n } : { label: lab("open the Blueprints"), r: "blueprints", step: n };
     if (n === 2) { const s = JOURNEY.find(x => !S.journey[x.id]); return { label: lab(s ? `Journey, ${s.title}` : st.t), r: "journey", step: n }; }
     if (n === 4) return { label: lab(st.t), r: S.pipe < PIPE.length ? "gates" : count(S.states) < 2 ? "states" : "rollback", step: n };
@@ -353,7 +355,7 @@ Rules: the FIRST option in every "o" array is the correct one. Wrong options are
       { k: "Welcome", body: `
         <div class="eyebrow">Mobile DevOps interview trainer</div>
         <h2 id="introTitle" class="in-title">Signed <span class="amp">&amp;</span> Shipped</h2>
-        <p class="in-lede">A game that teaches the whole road from a line of code to an app on someone's phone, in the order it really happens, so you can explain it in a Senior Mobile DevOps interview.</p>
+        <p class="in-lede">You've just been hired as RouteReady's Mobile DevOps engineer. Day One gets your computer and access set up; after that, your lead hands you tickets in the order they'd really arrive, from pinning tools to handling your first on-call page. No install is needed to play.</p>
         <div class="in-grid">
           <div><b>16</b><span>Journey stations, code to customer</span></div>
           <div><b>20</b><span>incident drills with STAR stories</span></div>
@@ -568,9 +570,11 @@ ${kv("application_id", "dev.lab.signed-and-shipped")}${kv("rank", r.name, "acc")
       }).join("")}</ol>
       <article class="station">
         <div class="st-head">
-          <div><div class="eyebrow">Station ${journeyPos + 1} of ${JOURNEY.length} · ${esc(ph.name)} phase${(() => { const sp = SPRINTS.find(x => x.stations.includes(st.id)); return sp ? ` · Sprint ${sp.n} (${esc(sp.weeks)})` : ""; })()}</div><h2>${esc(st.title)}</h2></div>
+          <div><div class="eyebrow">${TICKETS[st.id] ? esc(TICKETS[st.id].id) + " · " : ""}Station ${journeyPos + 1} of ${JOURNEY.length} · ${esc(ph.name)} phase${(() => { const sp = SPRINTS.find(x => x.stations.includes(st.id)); return sp ? ` · Sprint ${sp.n} (${esc(sp.weeks)})` : ""; })()}</div><h2>${esc(st.title)}</h2></div>
           <div class="jdtags">${st.jd.map(j => `<span class="tag">${esc(j)}</span>`).join("")}</div>
         </div>
+        ${TICKETS[st.id] ? `<div class="ticket"><div class="tk-h"><span class="tk-id">${esc(TICKETS[st.id].id)}</span><span>Assigned to you · from ${esc(STORY.lead)}</span></div><p>${esc(TICKETS[st.id].ask)}</p></div>` : ""}
+        ${TICKETS[st.id] && TICKETS[st.id].needs.length ? `<details class="needs" ${TICKETS[st.id].needs.some(id => !(S.setup || {})["tool:" + id]) ? "open" : ""}><summary>What you need for this ticket (${TICKETS[st.id].needs.length} ${TICKETS[st.id].needs.length > 1 ? "tools" : "tool"})</summary><div class="toolgrid">${TICKETS[st.id].needs.map(id => toolCard(id, S.os || "mac")).join("")}</div></details>` : ""}
         <div class="st-grid">
           <div class="st-main">
             <h3>What happens</h3><p>${esc(st.what)}</p>
@@ -595,6 +599,7 @@ ${kv("application_id", "dev.lab.signed-and-shipped")}${kv("rank", r.name, "acc")
     $$(".stop", v).forEach(b => b.addEventListener("click", () => { journeyPos = +b.dataset.i; viewJourney(v); }));
     $$(".linkbtn[data-drill]", v).forEach(b => b.addEventListener("click", () => { pendingDrill = +b.dataset.drill; go("drills"); }));
     bindFileBtns(v);
+    bindToolChecks(v, null);
     $$("[data-bp]", v).forEach(b => b.addEventListener("click", () => { bpTab = b.dataset.bp; go("blueprints"); }));
     $("#prevSt", v).addEventListener("click", () => { journeyPos--; viewJourney(v); });
     $("#nextSt", v).addEventListener("click", () => { journeyPos++; viewJourney(v); });
@@ -1573,6 +1578,49 @@ ${kv("application_id", "dev.lab.signed-and-shipped")}${kv("rank", r.name, "acc")
       prompt: () => `${AI_CONTEXT}\n\nExplain this reference file from the learner's lab repo, ${repoFile}:\n\`\`\`\n${content.slice(0, 12000)}\n\`\`\`\nGive: what it's for and where it sits in the code-to-customer pipeline (1-2 sentences), the 3-5 lines that matter most and why, what to fill in before it runs (any <VERIFY> or <pin-...> placeholders), and a 10-year-old analogy. Under 250 words.` });
     aiBox($("#aiRepo", v), { label: "Ask", input: "Ask about this file, e.g. 'why is cancel-in-progress false here?'", cache: false,
       prompt: q => `${AI_CONTEXT}\n\nFile ${repoFile}:\n\`\`\`\n${content.slice(0, 12000)}\n\`\`\`\nQuestion: ${q}\nAnswer in under 200 words, quoting line contents where useful.` });
+  }
+
+
+  /* =========================================================
+     DAY ONE — you've just been hired
+     ========================================================= */
+  function toolCard(id, os) {
+    const t = TOOLS[id]; if (!t) return "";
+    if (os === "mac" && id === "wsl") return "";
+    if (os === "win" && id === "brew") return "";
+    const k = "tool:" + id, done = S.setup && S.setup[k];
+    return `<div class="toolc ${done ? "done" : ""}">
+      <div class="toolc-h"><b>${esc(t.name)}</b><span class="tag">${esc(t.cost)}</span></div>
+      <p>${esc(t.what)}</p>
+      <p class="sub"><b>Runs on:</b> ${esc(t.os)}</p>
+      <div class="code small"><pre>${esc(t.check)}</pre></div>
+      <label class="kp"><input type="checkbox" id="${k}" data-k="${k}" ${done ? "checked" : ""}><span>Installed / checked</span></label></div>`;
+  }
+  function bindToolChecks(root, rerender) {
+    $$("input[data-k^='tool:'], input[data-k^='ob:']", root).forEach(cb => cb.addEventListener("change", () => {
+      S.setup = S.setup || {};
+      if (cb.checked) { S.setup[cb.dataset.k] = true; addXP(5, "Setup step"); } else delete S.setup[cb.dataset.k];
+      save(); rerender && rerender();
+    }));
+  }
+  function viewDayOne(v) {
+    S.setup = S.setup || {}; const os = S.os || "mac";
+    v.innerHTML = `
+      <header class="vhead"><div class="eyebrow">Day One · ${esc(STORY.role)} at ${esc(STORY.company)}</div><h1 class="vtitle">You've just been hired</h1>
+      <p class="lede">${esc(STORY.intro)}</p></header>
+      <div class="filters" role="group" aria-label="Your computer"><span class="sub" style="align-self:center">Your computer:</span>${[["mac", "Mac"], ["win", "Windows"], ["linux", "Linux"]].map(([k, l]) => `<button type="button" class="chip ${os === k ? "on" : ""}" data-os="${k}">${l}</button>`).join("")}</div>
+      <ol class="obline">${ONBOARD.map((o, i) => { const k = "ob:" + i, done = S.setup[k]; return `<li class="${done ? "done" : ""}">
+        <div class="ob-day">${esc(o.day)}</div>
+        <div class="ob-body"><h2>${esc(o.t)}</h2><p>${esc(o.what)}</p>
+          <div class="eli"><div class="eli-k">Explain it like I'm 10</div><p>${esc(o.an)}</p></div>
+          ${o.tools.length ? `<div class="toolgrid">${o.tools.map(id => toolCard(id, os)).join("")}</div>` : ""}
+          <p class="ob-action"><b>Do this:</b> ${esc(o.action)}</p>
+          <label class="kp"><input type="checkbox" id="${k}" data-k="${k}" ${done ? "checked" : ""}><span>Done</span></label>
+        </div></li>`; }).join("")}</ol>
+      <div class="row"><button type="button" class="btn primary" id="toTicket">Open your first ticket: ${esc(TICKETS[JOURNEY[0].id].id)} →</button></div>`;
+    $$("[data-os]", v).forEach(b => b.addEventListener("click", () => { S.os = b.dataset.os; save(); viewDayOne(v); }));
+    bindToolChecks(v, () => viewDayOne(v));
+    $("#toTicket", v).addEventListener("click", () => { journeyPos = 0; go("journey"); });
   }
 
   /* ---------- boot ---------- */
