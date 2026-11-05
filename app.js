@@ -112,8 +112,8 @@
   function aiState() { if (aiBlocked) return "blocked"; if (SAMPLE === undefined) return "checking"; return SAMPLE ? "on" : "off"; }
   function applyAiBtn(b) {
     const st = aiState();
-    b.disabled = st !== "on";
-    b.title = st === "on" ? "" : st === "checking" ? "Connecting to Claude…" : st === "blocked" ? "AI was declined for this page. Reload to be asked again." : "AI works when this page is opened inside Claude.";
+    b.disabled = st === "checking" || st === "blocked";
+    b.title = st === "on" ? "" : st === "checking" ? "Connecting to Claude…" : st === "blocked" ? "AI was declined for this page. Reload to be asked again." : "Builds the prompt so you can run it in Claude";
   }
   function syncAI() { document.documentElement.dataset.ai = aiState(); $$(".aibtn").forEach(applyAiBtn); }
   (function initAI() {
@@ -175,12 +175,14 @@ Style: plain, direct, specific. Analogies must be something a 10-year-old would 
     let ctl;
     stop.addEventListener("click", () => ctl && ctl.abort());
     async function run() {
-      const s = SAMPLE; if (!s || btn.disabled) return;
+      if (btn.disabled) return;
+      const s = SAMPLE;
       const val = inp ? inp.value.trim() : "";
       if (inp && !val && !o.optional) { inp.focus(); return; }
       let p;
       try { p = o.prompt(val); } catch (err) { note.textContent = err.message; note.hidden = false; return; }
       if (!p) return;
+      if (!s) { offline(p); return; }
       ctl = new AbortController();
       btn.disabled = true; stop.hidden = false; note.hidden = true;
       out.hidden = false; out.className = "ai-out"; out.innerHTML = `<span class="ai-think">Thinking…</span>`;
@@ -204,6 +206,14 @@ Style: plain, direct, specific. Analogies must be something a 10-year-old would 
         else out.hidden = true;
         if (msg) { note.textContent = msg; note.hidden = false; }
       } finally { stop.hidden = true; applyAiBtn(btn); }
+    }
+    function offline(p) {
+      const url = "https://claude.ai/new?q=" + encodeURIComponent(p);
+      out.hidden = false; note.hidden = true;
+      out.innerHTML = `<p><b>Run this in Claude.</b> AI answers need Claude, which this copy of the page can't reach. Copy the prompt, or open it in Claude directly.</p>
+        <div class="row" style="margin-top:4px"><button type="button" class="btn small primary" data-cp>Copy prompt</button>${url.length < 7500 ? `<a class="btn small" href="${esc(url)}" target="_blank" rel="noopener">Open in Claude ↗</a>` : `<span class="sub">Prompt is long: copy it, then paste into Claude.</span>`}</div>
+        <details class="ai-prompt"><summary>Show prompt</summary><pre class="copysrc">${esc(p)}</pre></details>`;
+      const cp = out.querySelector("[data-cp]"); cp.addEventListener("click", () => copyText(p, cp));
     }
     btn.addEventListener("click", run);
     if (inp) inp.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); run(); } });
@@ -267,7 +277,9 @@ Rules: the FIRST option in every "o" array is the correct one. Wrong options are
     states: ["Release States", viewStates],
     rollback: ["Rollback Lab", viewRollback],
     blueprints: ["Blueprints", viewBlueprints],
-    cards: ["Flashcards", viewCards],
+    cards: ["Terms", viewCards],
+    sprints: ["Sprints", viewSprints],
+    docs: ["Docs", viewDocs],
     interview: ["Interview Room", viewInterview],
     repo: ["Reference Repo", viewRepo]
   };
@@ -291,9 +303,9 @@ Rules: the FIRST option in every "o" array is the correct one. Wrong options are
      HOME
      ========================================================= */
   function planProgress() {
-    const cards = Math.min(count(S.cards), 15), bp = Math.min(count(S.bp || {}), 4);
+    const cards = Math.min(count(S.cards), 15), bp = Math.min(count(S.bp || {}), DIAGRAMS.length);
     return [
-      { d: cards + bp, of: 19 },
+      { d: cards + bp, of: 15 + DIAGRAMS.length },
       { d: journeyDone(), of: JOURNEY.length },
       { d: Math.min(S.quiz.best, 8), of: 8 },
       { d: S.pipe + count(S.states) * 4 + count(S.roll) * 2, of: PIPE.length + 8 + ROLLBACK.length * 2 },
@@ -471,8 +483,10 @@ ${kv("application_id", "dev.lab.signed-and-shipped")}${kv("rank", r.name, "acc")
         ["gates", "Pipeline Gates", "Sort work into PR, main, beta, promotion, nightly or never", `${S.pipe}/${PIPE.length}`],
         ["states", "Release States", "Put store states in order for iOS and Android", `${count(S.states)}/2`],
         ["rollback", "Rollback Lab", "Pick the right levers when something breaks", `${count(S.roll)}/${ROLLBACK.length}`],
-        ["blueprints", "Blueprints", "Tap-through diagrams: trust, signing, installed clients", "4 maps"],
-        ["cards", "Flashcards", "22 terms with analogies", `${count(S.cards)}/${CARDS.length}`],
+        ["blueprints", "Blueprints", "Numbered diagrams with time, sprint and step-by-step explanations", `${count(S.bp)}/${DIAGRAMS.length}`],
+        ["cards", "Terms", "Every term in pipeline order, tagged by tool and linked", `${count(S.cards)}/${CARDS.length}`],
+        ["sprints", "Sprints", "Seven 2-week sprints with deliverables and exit tests", `${SPRINTS.length} sprints`],
+        ["docs", "Docs", "Reference tables, cheat sheets and official links", "reference"],
         ["interview", "Interview Room", "Timed answers, STAR stories, 8-minute walkthrough", `${count(S.iq)}/${IQ.length}`],
         ["repo", "Reference Repo", "Workflows, Fastlane lanes, scripts and drill READMEs to clone", "76 files"]
       ].map(([k, n, d, p]) => `<a class="mode" href="#${k}"><span class="m-name">${n}</span><span class="m-desc">${d}</span><span class="m-prog">${p}</span></a>`).join("")}</div>
@@ -554,13 +568,14 @@ ${kv("application_id", "dev.lab.signed-and-shipped")}${kv("rank", r.name, "acc")
       }).join("")}</ol>
       <article class="station">
         <div class="st-head">
-          <div><div class="eyebrow">Station ${journeyPos + 1} of ${JOURNEY.length} · ${esc(ph.name)} phase</div><h2>${esc(st.title)}</h2></div>
+          <div><div class="eyebrow">Station ${journeyPos + 1} of ${JOURNEY.length} · ${esc(ph.name)} phase${(() => { const sp = SPRINTS.find(x => x.stations.includes(st.id)); return sp ? ` · Sprint ${sp.n} (${esc(sp.weeks)})` : ""; })()}</div><h2>${esc(st.title)}</h2></div>
           <div class="jdtags">${st.jd.map(j => `<span class="tag">${esc(j)}</span>`).join("")}</div>
         </div>
         <div class="st-grid">
           <div class="st-main">
             <h3>What happens</h3><p>${esc(st.what)}</p>
             <div class="eli"><div class="eli-k">Explain it like I'm 10</div><p>${esc(st.analogy)}</p></div>
+            ${st.pic ? `<h3>The picture</h3><div class="diagram mini">${flowSVG(DIAGRAMS.find(d => d.id === st.pic))}</div><p class="sub"><button type="button" class="linkbtn" data-bp="${st.pic}">Open the full blueprint: ${esc(DIAGRAMS.find(d => d.id === st.pic).t)} →</button> It explains every box in order.</p>` : ""}
             <h3>Done when</h3><p class="done-when">${esc(st.done)}</p>
             <div id="aiJ" class="ai-stack"></div>
           </div>
@@ -580,6 +595,7 @@ ${kv("application_id", "dev.lab.signed-and-shipped")}${kv("rank", r.name, "acc")
     $$(".stop", v).forEach(b => b.addEventListener("click", () => { journeyPos = +b.dataset.i; viewJourney(v); }));
     $$(".linkbtn[data-drill]", v).forEach(b => b.addEventListener("click", () => { pendingDrill = +b.dataset.drill; go("drills"); }));
     bindFileBtns(v);
+    $$("[data-bp]", v).forEach(b => b.addEventListener("click", () => { bpTab = b.dataset.bp; go("blueprints"); }));
     $("#prevSt", v).addEventListener("click", () => { journeyPos--; viewJourney(v); });
     $("#nextSt", v).addEventListener("click", () => { journeyPos++; viewJourney(v); });
     aiBox($("#aiJ", v), { label: "Explain it another way",
@@ -1013,84 +1029,216 @@ ${kv("application_id", "dev.lab.signed-and-shipped")}${kv("rank", r.name, "acc")
   /* =========================================================
      BLUEPRINTS (diagrams)
      ========================================================= */
-  let bpTab = "pipeline";
-  const NW = 170, NH = 64;
-  function anchor(n, side) {
-    return side === "r" ? [n.x + NW, n.y + NH / 2] : side === "l" ? [n.x, n.y + NH / 2] : side === "b" ? [n.x + NW / 2, n.y + NH] : [n.x + NW / 2, n.y];
+  let bpTab = DIAGRAMS[0].id;
+  const NW = 210, SX = 1.2;
+  function wrapSub(s, max) {
+    const parts = String(s).split(" · "), lines = []; let cur = "";
+    for (const p of parts) { const next = cur ? cur + " · " + p : p; if (next.length > max && cur) { lines.push(cur); cur = p; } else cur = next; }
+    if (cur) lines.push(cur);
+    return lines.flatMap(l => l.length > max + 6 ? [l.slice(0, max), l.slice(max)] : [l]).slice(0, 3);
   }
-  function flowSVG(dg) {
-    const byId = Object.fromEntries(dg.nodes.map(n => [n.id, n]));
+  function layout(dg) {
+    return dg.nodes.map(n => { const sub = wrapSub(n.s, 27); return { ...n, X: n.x * SX, sub, H: 46 + sub.length * 15 }; });
+  }
+  function anchor(n, side) {
+    return side === "r" ? [n.X + NW, n.y + n.H / 2] : side === "l" ? [n.X, n.y + n.H / 2] : side === "b" ? [n.X + NW / 2, n.y + n.H] : [n.X + NW / 2, n.y];
+  }
+  function flowSVG(dg, opts = {}) {
+    const L = layout(dg), byId = Object.fromEntries(L.map(n => [n.id, n]));
+    const W = Math.round(dg.w * SX + 20), H = Math.max(dg.h, ...L.map(n => n.y + n.H + 20));
     const edges = dg.edges.map(([a, b, lab]) => {
       const A = byId[a], B = byId[b];
-      const dx = B.x - A.x, dy = B.y - A.y;
-      let s1, s2, horiz = Math.abs(dx) >= Math.abs(dy);
+      const dx = B.X - A.X, dy = B.y - A.y;
+      let s1, s2; const horiz = Math.abs(dx) >= Math.abs(dy);
       if (horiz) { s1 = dx > 0 ? "r" : "l"; s2 = dx > 0 ? "l" : "r"; } else { s1 = dy > 0 ? "b" : "t"; s2 = dy > 0 ? "t" : "b"; }
       const [x1, y1] = anchor(A, s1), [x2, y2] = anchor(B, s2);
       let d;
       if (horiz) { const c = Math.max(28, Math.abs(x2 - x1) / 2) * (x2 > x1 ? 1 : -1); d = `M${x1} ${y1} C${x1 + c} ${y1} ${x2 - c} ${y2} ${x2 - (x2 > x1 ? 6 : -6)} ${y2}`; }
       else { const c = Math.max(28, Math.abs(y2 - y1) / 2) * (y2 > y1 ? 1 : -1); d = `M${x1} ${y1} C${x1} ${y1 + c} ${x2} ${y2 - c} ${x2} ${y2 - (y2 > y1 ? 6 : -6)}`; }
-      const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
-      return `<path class="edge" d="${d}" marker-end="url(#ah)"/>` + (lab ? `<text class="elab" x="${mx}" y="${my - 6}" text-anchor="middle">${esc(lab)}</text>` : "");
+      return `<path class="edge" d="${d}" marker-end="url(#ah)"/>` + (lab ? `<text class="elab" x="${(x1 + x2) / 2}" y="${(y1 + y2) / 2 - 7}" text-anchor="middle">${esc(lab)}</text>` : "");
     }).join("");
-    const nodes = dg.nodes.map(n => `<g class="node k-${n.k}" data-id="${n.id}" tabindex="0" role="button" aria-label="${esc(n.t)}">
-      <rect x="${n.x}" y="${n.y}" width="${NW}" height="${NH}" rx="3"/>
-      <text class="nt" x="${n.x + 12}" y="${n.y + 26}">${esc(n.t)}</text>
-      <text class="ns" x="${n.x + 12}" y="${n.y + 46}">${esc(n.s)}</text></g>`).join("");
-    return `<svg viewBox="0 0 ${dg.w} ${dg.h}" role="img" aria-label="${esc(dg.t)}" class="flow">
+    const nodes = L.map(n => `<g class="node k-${n.k} ${opts.sel === n.id ? "sel" : ""}" data-id="${n.id}" tabindex="0" role="button" aria-label="${n.n ? "Step " + n.n + ": " : ""}${esc(n.t)}">
+      <rect x="${n.X}" y="${n.y}" width="${NW}" height="${n.H}" rx="4"/>
+      ${n.n ? `<circle class="nbadge" cx="${n.X}" cy="${n.y}" r="12"/><text class="nnum" x="${n.X}" y="${n.y + 4}" text-anchor="middle">${n.n}</text>` : ""}
+      <text class="nt" x="${n.X + 16}" y="${n.y + 26}">${esc(n.t)}</text>
+      ${n.sub.map((l, i) => `<text class="ns" x="${n.X + 16}" y="${n.y + 44 + i * 15}">${esc(l)}</text>`).join("")}</g>`).join("");
+    return `<svg viewBox="-16 -16 ${W + 16} ${H + 16}" role="img" aria-label="${esc(dg.t)}" class="flow">
       <defs><marker id="ah" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="arrow"/></marker></defs>
       ${edges}${nodes}</svg>`;
   }
+  const stationsFor = id => JOURNEY.map((s, i) => ({ s, i })).filter(x => x.s.pic === id);
   function viewBlueprints(v) {
-    const dg = DIAGRAMS.find(d => d.id === bpTab);
-    if (!S.bp[bpTab]) { S.bp[bpTab] = true; save(); }
+    const dg = DIAGRAMS.find(d => d.id === bpTab) || DIAGRAMS[0];
+    if (!S.bp[dg.id]) { S.bp[dg.id] = true; save(); }
+    const ordered = dg.nodes.slice().sort((a, b) => (a.n || 99) - (b.n || 99));
+    const sp = SPRINTS.find(x => x.n === dg.sprint);
+    const st = stationsFor(dg.id);
     v.innerHTML = `
-      <header class="vhead"><div class="eyebrow">Blueprints</div><h1 class="vtitle">${esc(dg.t)}</h1>
-      <p class="lede">Tap any box to see what it does and why it's drawn where it is.</p></header>
-      <div class="filters" role="tablist">${DIAGRAMS.map(d => `<button type="button" role="tab" aria-selected="${d.id === bpTab}" class="chip ${d.id === bpTab ? "on" : ""}" data-t="${d.id}">${esc(d.t)}</button>`).join("")}</div>
-      <div class="eli"><div class="eli-k">Explain it like I'm 10</div><p>${esc(dg.an)}</p></div>
-      <div class="legend">${[["untrusted", "untrusted"], ["trusted", "trusted"], ["secret", "holds secrets"], ["store", "store / Google / Apple"], ["user", "installed apps"], ["danger", "hazard"]].map(([k, l]) => `<span class="lg k-${k}"><i></i>${l}</span>`).join("")}</div>
-      <div class="diagram">${flowSVG(dg)}</div>
-      <div class="info" id="info" aria-live="polite"><span class="sub">Tap a box.</span></div>
+      <header class="vhead"><div class="eyebrow">Blueprints · ${DIAGRAMS.indexOf(dg) + 1} of ${DIAGRAMS.length}</div><h1 class="vtitle">${esc(dg.t)}</h1></header>
+      <div class="filters" role="tablist">${DIAGRAMS.map((d, i) => `<button type="button" role="tab" aria-selected="${d.id === dg.id}" class="chip ${d.id === dg.id ? "on" : ""}" data-t="${d.id}">${i + 1}. ${esc(d.t)}</button>`).join("")}</div>
+      <section class="bpdef">
+        <div class="bpdef-main">
+          <div class="bp-k">What this blueprint is</div><p class="bp-what">${esc(dg.what)}</p>
+          <div class="bp-k">How to read it</div><p>${esc(dg.read)}</p>
+          <div class="eli"><div class="eli-k">Explain it like I'm 10</div><p>${esc(dg.an)}</p></div>
+        </div>
+        <aside class="bpdef-side">
+          <div class="bp-time"><span class="bp-k">Time</span><b>${esc(dg.time)}</b></div>
+          ${sp ? `<div><span class="bp-k">Sprint</span><button type="button" class="linkbtn" id="toSprint">Sprint ${sp.n} · ${esc(sp.weeks)}: ${esc(sp.goal)}</button></div>` : ""}
+          ${st.length ? `<div><span class="bp-k">Journey stations</span>${st.map(x => `<button type="button" class="linkbtn" data-st="${x.i}">${x.i + 1}. ${esc(x.s.title)}</button>`).join("")}</div>` : ""}
+        </aside>
+      </section>
+      <div class="howto"><span class="howto-n">1</span> Read the numbered steps below in order. <span class="howto-n">2</span> Click any box on the drawing (or a step in the list) to see what it does. <span class="howto-n">3</span> Ask the AI if a step still doesn't make sense.</div>
+      <div class="legend">${[["untrusted", "untrusted code"], ["trusted", "trusted build"], ["secret", "holds secrets / approval"], ["store", "store / Apple / Google"], ["user", "installed apps"], ["neutral", "neutral step"], ["danger", "hazard"]].map(([k, l]) => `<span class="lg k-${k}"><i></i>${l}</span>`).join("")}</div>
+      <div class="diagram" id="dgwrap">${flowSVG(dg)}</div>
+      <div class="info" id="info" aria-live="polite"><span class="sub">Click a box or a step to see its details here.</span></div>
+      <h3>The flow, step by step</h3>
+      <ol class="flowlist">${ordered.map(n => `<li><button type="button" class="flowstep" data-id="${n.id}"><span class="fs-n">${n.n || "·"}</span><span class="fs-t"><b>${esc(n.t)}</b><small>${esc(n.s)}</small></span></button><p>${esc(n.i)}</p></li>`).join("")}</ol>
       <div id="aiBP" class="ai-stack"></div>`;
-    aiBox($("#aiBP", v), { label: "Ask", input: "Ask about this diagram, e.g. 'why can't the PR job see secrets?'", cache: false,
-      prompt: q => `${AI_CONTEXT}\n\nDiagram "${dg.t}". Boxes: ${dg.nodes.map(n => `${n.t} (${n.s}): ${n.i}`).join(" | ")}. Arrows: ${dg.edges.map(e => e[0] + "→" + e[1]).join(", ")}.\nQuestion: ${q}\nAnswer in under 180 words, referring to the boxes by name, then one 10-year-old analogy.` });
     $$(".chip[data-t]", v).forEach(b => b.addEventListener("click", () => { bpTab = b.dataset.t; viewBlueprints(v); }));
-    const show = g => {
-      $$(".node", v).forEach(x => x.classList.remove("sel")); g.classList.add("sel");
-      const n = dg.nodes.find(x => x.id === g.dataset.id);
-      $("#info", v).innerHTML = `<div class="eyebrow">${esc(n.s)}</div><h3>${esc(n.t)}</h3><p>${esc(n.i)}</p>`;
+    const sb = $("#toSprint", v); if (sb) sb.addEventListener("click", () => go("sprints"));
+    $$("[data-st]", v).forEach(b => b.addEventListener("click", () => { const firstOpen = JOURNEY.findIndex(s => !S.journey[s.id]); const i = +b.dataset.st; journeyPos = (firstOpen === -1 || i <= firstOpen) ? i : firstOpen; go("journey"); }));
+    const show = id => {
+      $$(".node", v).forEach(x => x.classList.toggle("sel", x.dataset.id === id));
+      $$(".flowstep", v).forEach(x => x.classList.toggle("on", x.dataset.id === id));
+      const n = dg.nodes.find(x => x.id === id);
+      const out = dg.edges.filter(e => e[0] === id).map(e => dg.nodes.find(x => x.id === e[1]).t);
+      const inc = dg.edges.filter(e => e[1] === id).map(e => dg.nodes.find(x => x.id === e[0]).t);
+      $("#info", v).innerHTML = `<div class="eyebrow">${n.n ? "Step " + n.n + " · " : ""}${esc(n.s)}</div><h3>${esc(n.t)}</h3><p>${esc(n.i)}</p>
+        <p class="sub">${inc.length ? "Comes from: " + inc.map(esc).join(", ") + ". " : ""}${out.length ? "Leads to: " + out.map(esc).join(", ") + "." : ""}</p>`;
     };
-    $$(".node", v).forEach(g => { g.addEventListener("click", () => show(g)); g.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); show(g); } }); });
+    $$(".node", v).forEach(g => { g.addEventListener("click", () => show(g.dataset.id)); g.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); show(g.dataset.id); } }); });
+    $$(".flowstep", v).forEach(b => b.addEventListener("click", () => { show(b.dataset.id); $("#dgwrap", v).scrollIntoView({ behavior: "smooth", block: "nearest" }); }));
+    aiBox($("#aiBP", v), { label: "Ask", input: "Ask about this blueprint, e.g. 'why can't the PR job see secrets?'", cache: false,
+      prompt: q => `${AI_CONTEXT}\n\nBlueprint "${dg.t}": ${dg.what}\nSteps in order: ${ordered.map(n => `${n.n}. ${n.t} (${n.s}): ${n.i}`).join(" | ")}. Arrows: ${dg.edges.map(e => e[0] + "→" + e[1]).join(", ")}.\nQuestion: ${q}\nAnswer in under 180 words, referring to the steps by number, then one 10-year-old analogy.` });
   }
 
   /* =========================================================
-     FLASHCARDS
+     TERMS — in pipeline order, tagged by tool, connected
      ========================================================= */
+  let termFilter = "all";
   function viewCards(v) {
+    const all = CARDS.concat(S.gen.cards.map(c => ({ t: c.term, d: c.def, a: c.analogy, st: "ai", tool: "AI", x: [] })));
+    const tools = [...new Set(CARDS.map(c => c.tool))].sort();
+    const shown = all.filter(c => termFilter === "all" || c.tool === termFilter);
+    let num = 0;
+    const groups = PHASES.map(ph => ({ ph, sts: JOURNEY.map((s, i) => ({ s, i })).filter(x => x.s.phase === ph.id).map(x => ({ ...x, cards: shown.filter(c => c.st === x.s.id) })).filter(x => x.cards.length) })).filter(g => g.sts.length);
+    const aiCards = shown.filter(c => c.st === "ai");
+    const known = all.filter(c => S.cards[c.t]).length;
+    const card = c => { num++; return `<div class="term ${S.cards[c.t] ? "known" : ""}" id="term-${esc(c.t.replace(/[^a-z0-9]+/gi, "-"))}">
+        <div class="term-top"><span class="term-n">${num}</span><span class="term-t">${esc(c.t)}</span><span class="tag">${esc(c.tool)}</span></div>
+        <p>${esc(c.d)}</p><p class="analogy"><span>Like you're 10</span>${esc(c.a)}</p>
+        ${c.x && c.x.length ? `<div class="term-x"><span>Connects to</span>${c.x.map(x => `<button type="button" class="xlink" data-term="${esc(x)}">${esc(x)}</button>`).join("")}</div>` : ""}
+        <button type="button" class="term-mark" data-k="${esc(c.t)}">${S.cards[c.t] ? "Known ✓" : "I can explain this"}</button></div>`; };
     v.innerHTML = `
-      <header class="vhead"><div class="eyebrow">Flashcards</div><h1 class="vtitle">Words you'll hear in the room</h1>
-      <p class="lede">Tap a card to flip it. Mark the ones you can explain without peeking. Known: <b id="known">${count(S.cards)}</b>/${CARDS.length + S.gen.cards.length}</p></header>
-      <div class="ai-panel"><div class="eyebrow">AI flashcard maker</div><div id="aiC"></div></div>
-      <div class="cgrid">${CARDS.concat(S.gen.cards.map(c => [c.term, c.def, c.analogy])).map(([t, d, a], i) => `<div class="fc ${S.cards[i] ? "known" : ""}" data-i="${i}">
-        <button type="button" class="fc-in" aria-label="Flip card: ${esc(t)}">
-          <span class="fc-front"><span class="fc-term">${esc(t)}</span><span class="fc-hint">tap to flip</span></span>
-          <span class="fc-back"><span class="fc-def">${esc(d)}</span><span class="fc-an">${esc(a)}</span></span>
-        </button>
-        <button type="button" class="fc-mark" data-m="${i}">${S.cards[i] ? "Known ✓" : "I know this"}</button></div>`).join("")}</div>`;
-    $$(".fc-in", v).forEach(b => b.addEventListener("click", () => b.parentElement.classList.toggle("flip")));
-    aiBox($("#aiC", v), { label: "Make a card", input: "Any term, e.g. R8, bitcode, provisioning profile, ANR", json: true,
-      prompt: term => `${AI_CONTEXT}\n\nMake a flashcard for the term: ${term}\nReply with only one JSON object: {"term": "the term, short", "def": "1-2 sentence accurate definition in the context of mobile release engineering", "analogy": "one-sentence analogy a 10-year-old gets"}.`,
-      onJSON: (c, out) => {
-        if (!c || !str(c.term) || !str(c.def)) throw new Error("The card came back incomplete. Try again.");
-        S.gen.cards.push({ term: str(c.term, 40), def: str(c.def, 400), analogy: str(c.analogy, 300) || "" }); S.gen.cards = S.gen.cards.slice(-30); save();
-        viewCards(v); toast(`Card added: ${str(c.term, 40)}`);
-      } });
-    $$(".fc-mark", v).forEach(b => b.addEventListener("click", () => {
-      const i = +b.dataset.m;
-      if (S.cards[i]) { delete S.cards[i]; b.textContent = "I know this"; b.parentElement.classList.remove("known"); }
-      else { S.cards[i] = true; b.textContent = "Known ✓"; b.parentElement.classList.add("known"); addXP(3, (CARDS[i] || [S.gen.cards[i - CARDS.length]?.term || "card"])[0]); }
-      save(); $("#known", v).textContent = count(S.cards);
+      <header class="vhead"><div class="eyebrow">Terms</div><h1 class="vtitle">Every term, in pipeline order</h1>
+      <p class="lede">Terms follow the Journey from toolchain to incident write-up. Each is tagged with the tool it belongs to and linked to the terms it connects with. Known: <b id="known">${known}</b>/${all.length}</p></header>
+      <div class="filters" role="group" aria-label="Filter by tool"><button type="button" class="chip ${termFilter === "all" ? "on" : ""}" data-f="all">All tools</button>${tools.map(t => `<button type="button" class="chip ${termFilter === t ? "on" : ""}" data-f="${esc(t)}">${esc(t)}</button>`).join("")}</div>
+      <div class="ai-panel"><div class="eyebrow">AI term maker</div><div id="aiC"></div></div>
+      ${groups.map(g => `<section class="tphase"><h2><span class="ph-i">${PHASES.indexOf(g.ph) + 1}</span> ${esc(g.ph.name)}</h2>
+        ${g.sts.map(x => `<div class="tstation"><div class="tst-h"><span class="eyebrow">Station ${x.i + 1}</span><b>${esc(x.s.title)}</b><button type="button" class="linkbtn" data-st="${x.i}">open station →</button></div>
+          <div class="tgrid2">${x.cards.map(card).join("")}</div></div>`).join("")}</section>`).join("")}
+      ${aiCards.length ? `<section class="tphase"><h2>Your AI terms</h2><div class="tgrid2">${aiCards.map(card).join("")}</div></section>` : ""}`;
+    $$(".chip[data-f]", v).forEach(b => b.addEventListener("click", () => { termFilter = b.dataset.f; viewCards(v); }));
+    $$("[data-st]", v).forEach(b => b.addEventListener("click", () => { const firstOpen = JOURNEY.findIndex(s => !S.journey[s.id]); const i = +b.dataset.st; journeyPos = (firstOpen === -1 || i <= firstOpen) ? i : firstOpen; go("journey"); }));
+    $$(".xlink", v).forEach(b => b.addEventListener("click", () => {
+      const el = document.getElementById("term-" + b.dataset.term.replace(/[^a-z0-9]+/gi, "-"));
+      if (!el) { termFilter = "all"; viewCards(v); return; }
+      el.scrollIntoView({ behavior: "smooth", block: "center" }); el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash");
     }));
+    $$(".term-mark", v).forEach(b => b.addEventListener("click", () => {
+      const k = b.dataset.k, el = b.closest(".term");
+      if (S.cards[k]) { delete S.cards[k]; b.textContent = "I can explain this"; el.classList.remove("known"); }
+      else { S.cards[k] = true; b.textContent = "Known ✓"; el.classList.add("known"); addXP(3, k); }
+      save(); $("#known", v).textContent = all.filter(c => S.cards[c.t]).length;
+    }));
+    aiBox($("#aiC", v), { label: "Explain a term", input: "Any term, e.g. R8, bitcode, ANR, notarization", json: true,
+      prompt: term => `${AI_CONTEXT}\n\nMake a glossary entry for: ${term}\nReply with only one JSON object: {"term": "the term, short", "def": "1-2 sentence accurate definition in mobile release engineering, naming the tool it belongs to and where it happens in the pipeline", "analogy": "one-sentence analogy a 10-year-old gets"}.`,
+      onJSON: c => {
+        if (!c || !str(c.term) || !str(c.def)) throw new Error("The term came back incomplete. Try again.");
+        S.gen.cards.push({ term: str(c.term, 40), def: str(c.def, 400), analogy: str(c.analogy, 300) || "" }); S.gen.cards = S.gen.cards.slice(-30); save();
+        viewCards(v); toast(`Term added: ${str(c.term, 40)}`);
+      } });
+  }
+
+  /* =========================================================
+     SPRINTS
+     ========================================================= */
+  function viewSprints(v) {
+    S.sprint = S.sprint || {};
+    const done = (sp, i) => !!S.sprint[sp.n + ":" + i];
+    v.innerHTML = `
+      <header class="vhead"><div class="eyebrow">Sprints</div><h1 class="vtitle">Fourteen weeks, seven sprints</h1>
+      <p class="lede">A suggested plan that builds the RouteReady and StayReady labs in the same order as the Journey. It assumes about 8–10 hours a week. Store accounts, review and macOS access can add elapsed time, so treat dates as targets, not promises. Tick deliverables as you finish them; ticks are saved in this browser.</p></header>
+      <div class="sprint-rail">${SPRINTS.map(sp => { const t = sp.deliver.length, d = sp.deliver.filter((_, i) => done(sp, i)).length; return `<div class="sr ${d === t ? "full" : d ? "part" : ""}"><b>S${sp.n}</b><span>${esc(sp.weeks)}</span><i style="width:${Math.round(d / t * 100)}%"></i></div>`; }).join("")}</div>
+      ${SPRINTS.map(sp => `<section class="sprint">
+        <div class="sp-head"><span class="sp-n">Sprint ${sp.n}</span><span class="sp-w">${esc(sp.weeks)} · ${esc(sp.hours)}</span></div>
+        <h2>${esc(sp.goal)}</h2>
+        <div class="sp-grid">
+          <div><div class="bp-k">Deliverables</div>${sp.deliver.map((d, i) => `<label class="kp"><input type="checkbox" id="sp${sp.n}_${i}" data-k="${sp.n}:${i}" ${done(sp, i) ? "checked" : ""}><span>${esc(d)}</span></label>`).join("")}
+            <div class="bp-k" style="margin-top:12px">Exit test</div><p class="done-when">${esc(sp.exit)}</p></div>
+          <div class="sp-links">
+            ${sp.stations.length ? `<div class="bp-k">Journey stations</div>${sp.stations.map(id => { const i = JOURNEY.findIndex(s => s.id === id); return `<button type="button" class="linkbtn" data-st="${i}">${i + 1}. ${esc(JOURNEY[i].title)}</button>`; }).join("")}` : ""}
+            ${sp.drills.length ? `<div class="bp-k">Drills</div>${sp.drills.map(n => `<button type="button" class="linkbtn" data-drill="${n}">Drill ${n}: ${esc(DRILLS.find(d => d.n === n).t)}</button>`).join("")}` : ""}
+            ${sp.diagrams.length ? `<div class="bp-k">Blueprints</div>${sp.diagrams.map(id => `<button type="button" class="linkbtn" data-bp="${id}">${esc(DIAGRAMS.find(d => d.id === id).t)}</button>`).join("")}` : ""}
+          </div>
+        </div></section>`).join("")}`;
+    $$("input[data-k]", v).forEach(cb => cb.addEventListener("change", () => {
+      if (cb.checked) { S.sprint[cb.dataset.k] = true; addXP(10, "Sprint deliverable"); } else delete S.sprint[cb.dataset.k];
+      save(); viewSprints(v);
+    }));
+    $$("[data-st]", v).forEach(b => b.addEventListener("click", () => { const firstOpen = JOURNEY.findIndex(s => !S.journey[s.id]); const i = +b.dataset.st; journeyPos = (firstOpen === -1 || i <= firstOpen) ? i : firstOpen; go("journey"); }));
+    $$("[data-drill]", v).forEach(b => b.addEventListener("click", () => { pendingDrill = +b.dataset.drill; go("drills"); }));
+    $$("[data-bp]", v).forEach(b => b.addEventListener("click", () => { bpTab = b.dataset.bp; go("blueprints"); }));
+  }
+
+  /* =========================================================
+     DOCS — reference
+     ========================================================= */
+  const DOC_LINKS = [
+    ["Apple: release a version update in phases", "https://developer.apple.com/help/app-store-connect/update-your-app/release-a-version-update-in-phases"],
+    ["Android: Play App Signing", "https://developer.android.com/studio/publish/app-signing"],
+    ["fastlane: GitHub Actions integration", "https://docs.fastlane.tools/best-practices/continuous-integration/github/"],
+    ["fastlane: match", "https://docs.fastlane.tools/actions/match/"],
+    ["fastlane: setup_ci", "https://docs.fastlane.tools/actions/setup_ci/"],
+    ["fastlane: upload_to_testflight", "https://docs.fastlane.tools/actions/upload_to_testflight/"],
+    ["GitHub: security hardening for Actions", "https://docs.github.com/en/actions/security-for-github-actions/security-guides/security-hardening-for-github-actions"],
+    ["GitHub: OpenID Connect", "https://docs.github.com/en/actions/security-for-github-actions/security-hardening-your-deployments/about-security-hardening-with-openid-connect"],
+    ["Microsoft: App Center retirement", "https://learn.microsoft.com/en-us/appcenter/retirement"],
+    ["Expo: runtime versions", "https://docs.expo.dev/eas-update/runtime-versions/"]
+  ];
+  const CHEATS = [
+    ["Xcode", ["xcodebuild -version && xcode-select -p", "xcodebuild -showdestinations -scheme RouteReady", "xcrun simctl list devices available", "xcodebuild -showBuildSettings -scheme RouteReady | grep PRODUCT_BUNDLE_IDENTIFIER", "security cms -D -i profile.mobileprovision", "security find-identity -v -p codesigning", "dwarfdump --uuid RouteReady.app.dSYM"]],
+    ["Fastlane", ["bundle exec fastlane ios verify destination:\"$(./scripts/pick-simulator.sh)\"", "bundle exec fastlane ios package build_number:57", "bundle exec fastlane ios beta ipa:build/ios/RouteReady.ipa manifest:…", "bundle exec fastlane android package version_code:10512", "bundle exec fastlane run delete_keychain name:fastlane_tmp_keychain"]],
+    ["Android / Gradle", ["java -version && ./gradlew --version", "./gradlew lint testDebugUnitTest assembleDebug", "./gradlew :app:bundleRelease", "keytool -printcert -jarfile app-release.aab", "./gradlew :app:dependencies --configuration releaseRuntimeClasspath"]],
+    ["Git / GitHub", ["git switch -c feat/eta-confidence", "gh pr create --fill", "gh run list --workflow pr-ci.yml", "gh run rerun <id> --failed"]],
+    ["Release evidence", ["shasum -a 256 RouteReady.ipa", "jq . evidence/release-manifest.json", "./scripts/verify-manifest.sh <artifact> <manifest>", "./scripts/record-state.sh ios uploaded"]],
+    ["Backend", ["docker buildx imagetools inspect $IMAGE", "oasdiff breaking base.yaml contracts/openapi.yaml --fail-on ERR", "./scripts/smoke.sh $STAGING_API_URL"]]
+  ];
+  function viewDocs(v) {
+    const sec = [["glance", "Pipeline at a glance"], ["lanes", "Fastlane lane contract"], ["events", "Pipeline events and gates"], ["manifest", "Release manifest fields"], ["states", "Store states"], ["secrets", "Secrets: where they live"], ["cheats", "Command cheat sheets"], ["official", "Official docs"], ["repofiles", "Reference repo files"]];
+    const tbl = (head, rows) => `<div class="tablewrap"><table class="jd"><thead><tr>${head.map(h => `<th>${esc(h)}</th>`).join("")}</tr></thead><tbody>${rows.map(r => `<tr>${r.map(c => `<td>${c}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+    v.innerHTML = `
+      <header class="vhead"><div class="eyebrow">Docs</div><h1 class="vtitle">Reference</h1>
+      <p class="lede">Everything you'd look up mid-interview or mid-build, in one place. Tables follow the same order as the Journey.</p></header>
+      <div class="docs">
+        <nav class="toc" aria-label="On this page">${sec.map(([id, t], i) => `<button type="button" data-go="${id}"><span>${i + 1}</span>${esc(t)}</button>`).join("")}</nav>
+        <div class="docbody">
+          <section id="d-glance"><h2>1. Pipeline at a glance</h2>${tbl(["#", "Station", "Phase", "First command / config", "Sprint"], JOURNEY.map((s, i) => [String(i + 1), `<button type="button" class="linkbtn" data-st="${i}">${esc(s.title)}</button>`, esc(PHASES.find(p => p.id === s.phase).name), `<code>${esc(String(s.tools[0]).split("\n")[0])}</code>`, (SPRINTS.find(sp => sp.stations.includes(s.id)) || {}).n ? "S" + SPRINTS.find(sp => sp.stations.includes(s.id)).n : "–"]))}</section>
+          <section id="d-lanes"><h2>2. Fastlane lane contract</h2>${tbl(["Lane", "Does", "Never"], [["<code>ios verify</code>", "Simulator build + tests, xcresult saved", "Load signing secrets"], ["<code>ios package</code>", "Preflight, setup_ci, match readonly, signed IPA + dSYMs, manifest", "Create or revoke certificates"], ["<code>ios beta</code>", "Verify checksum, upload existing IPA, record 'uploaded'", "Rebuild"], ["<code>ios promote</code>", "Submit existing build for review, phased release", "Upload a new binary"], ["<code>android verify</code>", "Lint, unit tests, debug build", "Load keystores"], ["<code>android package</code>", "Signed AAB with upload key, fingerprint preflight, manifest", "Use the debug key"], ["<code>android beta</code>", "Upload existing AAB to internal track", "Rebuild"], ["<code>android promote</code>", "Promote versionCode to production staged rollout", "Upload a new AAB"]])}</section>
+          <section id="d-events"><h2>3. Pipeline events and gates</h2>${tbl(["Trigger", "Work", "Must not", "Evidence"], [["Pull request", "Lint, unit, contract, integration, simulator/emulator tests", "Load signing keys, publish, deploy prod", "Test reports, logs"], ["Merge to main", "Trusted validation, immutable images, staging deploy, smoke", "Imply app-store release", "SHA, image digest, staging checks"], ["Explicit beta", "Allocate number, sign, archive, upload to test track", "Rebuild on retry, log secrets", "Checksums, symbols, states"], ["Promotion", "Verify candidate + approvals, promote existing build", "Recompile, bypass review", "Manifest, approval, state"], ["Nightly", "Device matrix, dependency scans, drills", "Unlimited macOS minutes", "Flake history, owners"]].map(r => r.map(esc)))}</section>
+          <section id="d-manifest"><h2>4. Release manifest fields</h2>${tbl(["Field", "Why"], [["application_id, platform", "Which app"], ["marketing_version, build_number", "Which release and binary"], ["git_sha, workflow_run_id, toolchain", "Where it came from"], ["artifact_sha256, symbol_artifact_ids", "Proves the bytes; enables crash symbolication"], ["backend_image_digest, api_contract_revision, tested_client_versions", "Compatibility evidence"], ["feature_flag_defaults, target_track, approvals", "What ships and who approved"], ["store_state, distribution_status", "Separate truthful states"], ["NEVER: tokens, passwords, keys, personal data", "It's shared evidence"]].map(r => r.map(esc)))}</section>
+          <section id="d-states"><h2>5. Store states</h2>${Object.values(STATES).map(tr => `<h3>${esc(tr.name)}</h3><ol class="mdlist">${tr.items.map(([a, b]) => `<li><b>${esc(a)}</b> — ${esc(b)}</li>`).join("")}</ol>`).join("")}</section>
+          <section id="d-secrets"><h2>6. Secrets: where they live</h2>${tbl(["Secret", "GitHub environment", "Used by"], [["MATCH_GIT_URL, MATCH_PASSWORD", "release-ios", "ios package (readonly match)"], ["ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8_BASE64", "release-ios, production", "ios beta, promote"], ["UPLOAD_KEYSTORE_BASE64 + passwords + alias", "release-android", "android package"], ["PLAY_JSON_KEY", "release-android, production", "android beta, promote"], ["(none)", "PR workflows", "PR jobs see no secrets"]].map(r => r.map(esc)))}</section>
+          <section id="d-cheats"><h2>7. Command cheat sheets</h2><div class="cheats">${CHEATS.map(([t, cmds]) => `<div class="copyable"><div class="so-head"><h3>${esc(t)}</h3><button type="button" class="btn small" data-copy="${esc(t)}">Copy</button></div><div class="code small"><pre class="copysrc">${cmds.map(esc).join("\n")}</pre></div></div>`).join("")}</div></section>
+          <section id="d-official"><h2>8. Official docs</h2><p class="sub">Links open in a new tab. Pages move; search the title if one 404s.</p><ul class="mdlist">${DOC_LINKS.map(([t, u]) => `<li><a href="${esc(u)}" target="_blank" rel="noopener">${esc(t)} ↗</a></li>`).join("")}</ul></section>
+          <section id="d-repofiles"><h2>9. Reference repo files</h2>${typeof REPO === "object" ? fileBtns(Object.keys(REPO).filter(p => !p.startsWith("drills/")), "") : "<p>Not loaded.</p>"}</section>
+        </div>
+      </div>`;
+    $$(".toc button", v).forEach(b => b.addEventListener("click", () => { const el = $("#d-" + b.dataset.go, v); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); }));
+    $$("[data-st]", v).forEach(b => b.addEventListener("click", () => { const firstOpen = JOURNEY.findIndex(s => !S.journey[s.id]); const i = +b.dataset.st; journeyPos = (firstOpen === -1 || i <= firstOpen) ? i : firstOpen; go("journey"); }));
+    $$("[data-copy]", v).forEach(b => b.addEventListener("click", () => { const c = CHEATS.find(x => x[0] === b.dataset.copy); copyText(c[1].join("\n"), b); }));
+    bindFileBtns(v);
   }
 
   /* =========================================================

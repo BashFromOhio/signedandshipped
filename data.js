@@ -27,8 +27,8 @@ const PHASES = [
 
 /* ---------- THE GAME PLAN: how to tackle this, step by step ---------- */
 const PLAN = [
-  { n: 1, t: "Learn the words", modes: [["cards", "Flashcards"], ["blueprints", "Blueprints"]],
-    what: "Flip the 22 flashcards and tap through the 4 Blueprints. If 'upload key' and 'app signing key' sound like the same thing, every later step is harder.",
+  { n: 1, t: "Learn the words", modes: [["cards", "Terms"], ["blueprints", "Blueprints"], ["sprints", "Sprints"]],
+    what: "Read the Terms in pipeline order, open every Blueprint, and skim the Sprints plan. If 'upload key' and 'app signing key' sound like the same thing, every later step is harder.",
     an: "Learn the names of the tools before you build the treehouse.",
     done: "15 cards marked known and all 4 blueprints opened" },
   { n: 2, t: "Walk the Journey in order", modes: [["journey", "Journey"]],
@@ -59,7 +59,7 @@ const PLAN = [
 
 const JOURNEY = [
   {
-    id: "toolchain", phase: "build", title: "Pin the toolchain",
+    id: "toolchain", pic: "fullpipe", phase: "build", title: "Pin the toolchain",
     what: "Before writing app code, record an exact, compatible set of tools: Xcode, macOS runner image, simulator runtime, Swift, Android SDK, JDK, Gradle wrapper, Android Gradle Plugin, Kotlin, Node, React Native, Ruby, Bundler, Fastlane, Python and Java. Pick versions from official compatibility docs and runners that actually exist. Commit lockfiles and the Gradle wrapper checksum. Note the date you verified it.",
     analogy: "Imagine the whole class baking the same cake. If one kid uses a different oven temperature and a different kind of flour, their cake comes out weird and nobody knows why. Pinning the toolchain means everyone uses the same recipe card, the same oven setting and the same flour brand.",
     tools: ["xcodebuild -version", "xcode-select -p", "xcodebuild -showdestinations -scheme RouteReady", "xcrun simctl list devices available", "java -version && ./gradlew --version", "bundle lock && git add Gemfile.lock"],
@@ -69,7 +69,7 @@ const JOURNEY = [
     check: { q: "CI used to pass. The hosted runner image updated overnight and now xcodebuild says 'Unable to find a destination'. What was the process gap?", o: ["The runner image and simulator destination were not pinned and detected; the job relied on whatever macos-latest shipped", "The Swift code had a bug that only shows on new simulators", "The signing certificate expired overnight", "GitHub Actions is down"], w: "Toolchain drift. Pin the runner image and Xcode, detect real destinations, and upgrade through a reviewed toolchain PR." }
   },
   {
-    id: "branch", phase: "build", title: "Branch small, hide unfinished work",
+    id: "branch", pic: "fullpipe", phase: "build", title: "Branch small, hide unfinished work",
     what: "Work on a short-lived feature branch off protected main. Keep changes small so review is real. Anything not ready for users goes behind a feature flag (like eta_confidence_enabled), so main stays releasable at all times. No permanent develop branch.",
     analogy: "It's like borrowing a library book: take it out, read it, bring it back fast. If you keep it for months, the library changes and your book no longer fits on the shelf. A feature flag is like a curtain on a stage: the set can be built behind it while the show goes on.",
     tools: ["git switch -c feat/eta-confidence", "git commit -m \"Add ETA confidence behind flag\"", "gh pr create --fill"],
@@ -79,7 +79,7 @@ const JOURNEY = [
     check: { q: "Why is main expected to be releasable at all times in trunk-based development?", o: ["Small merges plus feature flags mean any commit on main could become a release candidate without waiting for a big integration", "Because main deploys to the App Store automatically", "Because develop holds the unfinished work", "Because reviewers never look at main"], w: "Main being releasable comes from small changes and flags. It does NOT mean every merge goes to the store." }
   },
   {
-    id: "prci", phase: "build", title: "Pull request CI (untrusted)",
+    id: "prci", pic: "pipeline", phase: "build", title: "Pull request CI (untrusted)",
     what: "When the PR opens, CI runs lint, unit tests, API contract checks, backend integration tests, iOS simulator build/tests on macOS and Android Gradle build/tests on Linux. This code is untrusted, especially from forks: read-only token, no signing keys, no store credentials, no production deploys. Superseded runs get cancelled. Reports upload even on failure.",
     analogy: "This is the spelling-and-math check before you turn in homework. And because it's a stranger's homework, the substitute teacher checking it does NOT get the keys to the principal's office. The checker can look, but can't unlock anything.",
     tools: ["on: pull_request", "permissions: { contents: read }", "concurrency: { group: pr-${{ github.ref }}, cancel-in-progress: true }", "bundle exec fastlane ios verify", "bundle exec fastlane android verify", "openapi-diff contracts/v1-prev.yaml contracts/openapi.yaml"],
@@ -89,7 +89,7 @@ const JOURNEY = [
     check: { q: "Which trigger is safe for running a fork's PR code?", o: ["pull_request, with read-only permissions and no secrets", "pull_request_target with the PR head checked out", "pull_request_target with secrets in env", "push to main"], w: "pull_request_target runs in the base repo's privileged context. Checking out and running fork code there hands strangers your secrets." }
   },
   {
-    id: "gate", phase: "build", title: "Required check, review, merge",
+    id: "gate", pic: "pipeline", phase: "build", title: "Required check, review, merge",
     what: "One always-running aggregate check is the only required status. It reports success only if every job that applied to this change passed. Path-aware change detection decides which jobs apply, and shared things (contracts, lockfiles, workflows, config) trigger everything affected. A human reviews. Then merge to protected main.",
     analogy: "Think of a hall monitor at the door. Every kid in the group must show a hall pass. If the hall monitor goes home early, the line just stands there forever. So the hall monitor always shows up, even on days only one kid needs to pass.",
     tools: ["jobs.changes: dorny/paths-filter (pinned SHA)", "jobs.ci-gate: if: always()", "needs: [changes, ios, android, api, web]", "branch protection: require ci-gate + 1 review", "on: merge_group  # if using a merge queue"],
@@ -99,7 +99,7 @@ const JOURNEY = [
     check: { q: "A job that 'needs' a failed job gets skipped. If the required check is that skipped job, what happens?", o: ["GitHub treats skipped as passing, so a broken PR can merge. The gate needs if: always() and must check each result", "The PR is blocked forever", "GitHub reruns the failed job", "The PR closes automatically"], w: "Skipped jobs report success. That's why the aggregate job runs with if: always() and inspects needs.*.result." }
   },
   {
-    id: "main", phase: "integrate", title: "Trusted main build + staging",
+    id: "main", pic: "pipeline", phase: "integrate", title: "Trusted main build + staging",
     what: "After merge, trusted validation repeats on main. Backend and web are built once into immutable artifacts: a container image identified by its sha256 digest, not a floating tag like :latest. That exact digest deploys to staging and integration smoke tests run against it. Merging to main does NOT mean a public app-store release.",
     analogy: "This is the dress rehearsal on the real stage with the real costumes. And every costume gets a name tag sewn in, so on opening night you know it's the exact same costume, not one that just looks similar.",
     tools: ["docker build -t $REGISTRY/routeready-api:$GITHUB_SHA services/api", "docker push $REGISTRY/routeready-api:$GITHUB_SHA", "docker buildx imagetools inspect $REGISTRY/routeready-api:$GITHUB_SHA  # read digest", "deploy image@sha256:<digest> to staging", "./scripts/smoke.sh staging"],
@@ -109,7 +109,7 @@ const JOURNEY = [
     check: { q: "Why deploy by image digest rather than a tag like :latest?", o: ["A digest names exactly one image; a tag can move, so what you tested might not be what runs", "Digests make images smaller", "Tags are not allowed in production", "Digests skip the registry"], w: "Tags are sticky notes that can be moved. A digest is a fingerprint." }
   },
   {
-    id: "backend", phase: "integrate", title: "Backend first, additive only",
+    id: "backend", pic: "installed", phase: "integrate", title: "Backend first, additive only",
     what: "Deploy the additive API change before the mobile release. Keep /api/v1 and only add things: new optional fields, new endpoints. Never rename, remove or change a field's type that installed apps read. Contract tests run current and previous client fixtures against the candidate API. Marketing version (1.4 → 2.0) has nothing to do with API path versions. Use expand → backfill → transition → contract for database changes.",
     analogy: "You're building a new bike rack because next week kids get new bikes with wider tires. You build the new wide slots FIRST, and you keep the old skinny slots too, because lots of kids still ride old bikes. If you rip out the old slots, those kids have nowhere to park.",
     tools: ["openapi-diff --fail-on-incompatible prev.yaml openapi.yaml", "./gradlew :api:contractTest -PclientFixtures=v1.3,v1.4", "GET /api/v1/capabilities  # advertise new features", "migration 0007_expand_add_eta_confidence.sql"],
@@ -119,7 +119,7 @@ const JOURNEY = [
     check: { q: "Why must the backend change ship before the new app version?", o: ["The new app may reach some users before others, and old apps stay installed, so the API must already serve both", "Because the App Store requires it", "Because mobile builds take longer", "So the backend can force everyone to update"], w: "Mobile and API releases are coordinated, not atomic. Store review and users who delay updates mean many versions are installed at once." }
   },
   {
-    id: "preflight", phase: "package", title: "Release preflight + build number",
+    id: "preflight", pic: "buildnum", phase: "package", title: "Release preflight + build number",
     what: "An explicit release run (not every merge) starts with preflight: is this a trusted commit on main, correct application ID, correct target environment, required approvals and evidence present, signing access available? Then a single, concurrency-protected allocator reserves the next build number for that app and platform, persists it with the Git SHA, and never reuses it for a different binary. Retries reuse the same artifact.",
     analogy: "It's the take-a-number machine at the deli. Two customers can never get ticket 57. If your ticket falls on the floor, you pick up YOUR ticket again; you don't print a fresh one and cut the line. And a new deli location doesn't restart at ticket 1 when the old tickets are still in people's pockets.",
     tools: ["bundle exec fastlane release preflight", "concurrency: { group: release-ios-routeready, cancel-in-progress: false }", "./scripts/allocate-build-number.sh ios org.routeready.parent $GITHUB_SHA", "latest_testflight_build_number  # cross-check store", "google_play_track_version_codes(track: \"internal\")"],
@@ -129,7 +129,7 @@ const JOURNEY = [
     check: { q: "Why not just use GITHUB_RUN_NUMBER as the build number?", o: ["It can collide across workflows, repeats on rerun, and resets in a new repo", "It's a string, not a number", "Apple rejects numbers over 100", "It isn't available on macOS runners"], w: "Build numbers need one durable allocator per app/platform, cross-checked with the store." }
   },
   {
-    id: "sign", phase: "package", title: "Sign and package",
+    id: "sign", pic: "ios", phase: "package", title: "Sign and package",
     what: "iOS: on a macOS runner, setup_ci makes a temporary keychain; match runs readonly to fetch the existing distribution certificate and profile; a signing preflight checks bundle ID, team, entitlements and profile; gym archives and exports an IPA plus dSYMs; the keychain is deleted even if the job fails. Android: decode the upload keystore from a protected secret into a temp file, build a signed AAB with Gradle, collect mapping.txt and native symbols, delete the keystore file always. Never regenerate or revoke team certificates to 'fix' a build.",
     analogy: "Signing is like a wax seal on a letter from the king. The seal proves who sent it and that nobody opened it. You keep the seal stamp in a locked drawer, take it out only for the minute you need it, and lock it away again. You never make a new seal just because the wax was cold.",
     tools: ["setup_ci", "match(type: \"appstore\", readonly: true)", "security find-identity -v -p codesigning", "gym(scheme: \"RouteReady\", export_method: \"app-store\")", "./gradlew :app:bundleRelease", "keytool -printcert -jarfile app-release.aab", "delete_keychain  # in an always-run cleanup"],
@@ -139,7 +139,7 @@ const JOURNEY = [
     check: { q: "Simulator tests are green. What does that prove about distribution signing?", o: ["Nothing. Simulator builds don't use your distribution certificate, profile, entitlements or export", "Signing works", "Only the App Store icon is untested", "The provisioning profile is valid"], w: "Archive and export are where signing actually gets checked." }
   },
   {
-    id: "manifest", phase: "package", title: "Release manifest + artifacts",
+    id: "manifest", pic: "buildnum", phase: "package", title: "Release manifest + artifacts",
     what: "Write a machine-readable release manifest: application ID, platform, marketing version, build number, Git SHA, workflow run ID, toolchain versions, artifact SHA-256, symbol artifact IDs, backend image digest, API contract revision, tested client versions, feature-flag defaults, target track, approvals and distribution status. Store it with the IPA/AAB, dSYMs, mapping files and source maps, with a retention period longer than your support window. Never put tokens, passwords, keys or personal data in it.",
     analogy: "It's the packing slip inside a shipping box, plus a fingerprint of everything inside. If something goes wrong later, you read the slip and know exactly which toy, from which factory, on which day, went into that box.",
     tools: ["shasum -a 256 RouteReady.ipa", "dwarfdump --uuid RouteReady.app.dSYM", "jq . evidence/release-manifest.json", "actions/upload-artifact (pinned SHA) with retention-days"],
@@ -149,7 +149,7 @@ const JOURNEY = [
     check: { q: "Which field must NEVER appear in a release manifest?", o: ["The keystore password", "The artifact SHA-256", "The backend image digest", "The API contract revision"], w: "The manifest is evidence that gets shared and stored. Secrets never belong there." }
   },
   {
-    id: "beta", phase: "release", title: "Beta upload",
+    id: "beta", pic: "pipeline", phase: "release", title: "Beta upload",
     what: "Upload the already-built artifact. Before uploading, verify SHA, application ID, version and checksum. iOS goes to TestFlight; Android goes to the Play internal testing track. A retry uploads the same file; it never recompiles. Then track separate states: uploaded, processing, available to testers. A green upload step is not 'released'.",
     analogy: "Mailing a package: you dropped it at the post office (uploaded). It's at the sorting center (processing). It's out for delivery (testers can install). Saying 'Grandma got her present' when you only dropped it off would be fibbing.",
     tools: ["upload_to_testflight(ipa: \"build/RouteReady.ipa\", skip_waiting_for_build_processing: true)", "upload_to_play_store(aab: \"build/app-release.aab\", track: \"internal\")", "./scripts/poll-store-state.sh --timeout 30m"],
@@ -159,7 +159,7 @@ const JOURNEY = [
     check: { q: "The upload job retried after a network error. What should it do?", o: ["Re-upload the same IPA/AAB with the same checksum and build number", "Rebuild from the same SHA to get a fresh binary", "Increment the build number and rebuild", "Skip upload and mark released"], w: "Rebuilding creates a different binary with different symbols. Retries are idempotent for the existing artifact." }
   },
   {
-    id: "candidate", phase: "release", title: "Validate the production candidate",
+    id: "candidate", pic: "buildnum", phase: "release", title: "Validate the production candidate",
     what: "Testers exercise the exact binary you intend to promote, pointed at the production configuration. A staging app that talks to a staging backend is a different binary, so it doesn't count. Preflight checks the compiled public config (API base URL, environment name) matches the target. Previous and current clients both pass contract tests against the live API.",
     analogy: "It's the taste test of the actual cake you're bringing to the party, not a cupcake made from the same batter. If you tested the cupcake and bring the cake, you didn't really test the cake.",
     tools: ["plutil -p Payload/RouteReady.app/Info.plist | grep API_BASE_URL", "bundletool dump manifest --bundle app-release.aab", "./scripts/preflight-env.sh production"],
@@ -169,7 +169,7 @@ const JOURNEY = [
     check: { q: "Your staging app (different bundle ID, staging API) passed testing. Can you promote it to production?", o: ["No. It's a different binary; test the production candidate itself", "Yes, same Git SHA means same app", "Yes, if the UI looks the same", "Only on Android"], w: "Same-artifact promotion works within one application identity and environment." }
   },
   {
-    id: "approve", phase: "release", title: "Approval gate + store review",
+    id: "approve", pic: "pipeline", phase: "release", title: "Approval gate + store review",
     what: "A protected environment requires a named approver before promotion. The workflow verifies candidate, compatibility evidence, monitoring readiness and target track, then promotes the existing build. It does not silently recompile or skip review. Apple App Review and Google Play review are separate states you report truthfully, with bounded polling.",
     analogy: "The principal has to sign the field-trip form before the bus leaves. And the bus company also checks the form. Until both say yes, you don't tell parents the bus left.",
     tools: ["environment: production  # required reviewers", "deliver(submit_for_review: true, skip_binary_upload: true, build_number: \"57\")", "upload_to_play_store(track: \"internal\", track_promote_to: \"production\", rollout: \"0.1\", skip_upload_aab: true)"],
@@ -179,7 +179,7 @@ const JOURNEY = [
     check: { q: "Production promotion should...", o: ["Promote the eligible existing candidate after approval", "Recompile from main to pick up latest fixes", "Skip review if CI is green", "Upload a new build with the same number"], w: "Recompiling at promotion means you ship something nobody tested." }
   },
   {
-    id: "rollout", phase: "release", title: "Phased / staged rollout + feature cohorts",
+    id: "rollout", pic: "installed", phase: "release", title: "Phased / staged rollout + feature cohorts",
     what: "Apple phased release follows Apple's fixed 7-day schedule for automatic updates (1%, 2%, 5%, 10%, 20%, 50%, 100%). You can pause it, but anyone can still update manually and new installs get the new version. Google Play staged rollout lets you choose and raise the percentage, and halt it. Separately, backend feature flags expose new behavior to a cohort you control, and can turn it off for already-installed apps.",
     analogy: "Rollout is like letting kids onto a water slide a few at a time. But some kids can climb the stairs on their own (manual update), and you can't pull a kid back up once they've gone down. The feature flag is the light switch for the slide's water: you can turn it off for everyone already on it.",
     tools: ["App Store Connect: Phased Release for Automatic Updates", "upload_to_play_store(track: \"production\", rollout: \"0.2\", skip_upload_aab: true)", "PATCH /flags/eta_confidence_enabled  { cohort: \"beta-district-1\" }"],
@@ -189,7 +189,7 @@ const JOURNEY = [
     check: { q: "Why use feature flags if stores already stage releases?", o: ["Store rollout controls who gets the binary; flags control who sees the feature and can switch it off on installed apps", "Flags make the app smaller", "Store rollouts don't exist on iOS", "Flags replace App Review"], w: "Decouple shipping code from exposing behavior." }
   },
   {
-    id: "observe", phase: "operate", title: "Observe with the right symbols",
+    id: "observe", pic: "observe", phase: "operate", title: "Observe with the right symbols",
     what: "Structured logs carry request IDs, app version/build, environment and redacted route/tenant identifiers. Crash reporting (optional Sentry) gets the exact dSYMs, mapping files and React Native source maps for that build's release/dist. Dashboards segment crash-free rate and API latency by release, OS, device and feature cohort. Targets are lab targets, not achieved results.",
     analogy: "Smoke detectors are great, but only if each one is labeled with its room. Symbols are the room labels. Without them the alarm says 'fire somewhere in a building' instead of 'kitchen, by the toaster'.",
     tools: ["sentry-cli debug-files upload --include-sources build/dSYMs", "sentry-cli sourcemaps upload --release $RELEASE --dist $BUILD", "grep request_id=7c1e logs/api.jsonl"],
@@ -199,7 +199,7 @@ const JOURNEY = [
     check: { q: "Why can rebuilding the same Git SHA give unusable symbols?", o: ["Each build gets new binary UUIDs, so the new dSYM doesn't match the shipped binary", "Git SHAs change on rebuild", "Symbols expire after 24 hours", "Sentry only accepts the first upload"], w: "Keep the symbols from the exact build you shipped." }
   },
   {
-    id: "incident", phase: "operate", title: "Respond: contain, fix, verify",
+    id: "incident", pic: "incident", phase: "operate", title: "Respond: contain, fix, verify",
     what: "When something breaks: contain first (flag off, pause phased release or halt staged rollout, restore compatible backend), then fix the root cause (compatible backend fix, or a replacement binary with a higher build number), then verify against the actual failure, including the installed population. 'Rollback' must name what is rolled back: a backend digest, a flag, or a distribution. You cannot uninstall a binary from someone's phone.",
     analogy: "You can't un-send a text message. If you sent the wrong thing, you send a quick 'ignore that!' (flag off), stop forwarding it (pause rollout), and send the corrected message (new build). Pretending you can delete it from their phone doesn't work.",
     tools: ["PATCH /flags/eta_confidence_enabled false", "App Store Connect: Pause Phased Release", "upload_to_play_store(track: \"production\", rollout: \"0.2\", release_status: \"halted\", skip_upload_aab: true)", "deploy image@sha256:<previous-compatible-digest>"],
@@ -209,7 +209,7 @@ const JOURNEY = [
     check: { q: "Someone says 'just roll back' after a crash in iOS 1.5. What's the best response?", o: ["Ask what exactly is rolled back: binary distribution can be paused, the flag disabled, the backend reverted if compatible, but installed 1.5 stays until a new binary replaces it", "Roll back the App Store to 1.4", "Delete 1.5 from users' devices", "Restore the database"], w: "In mobile, rollback is mostly roll-forward with containment." }
   },
   {
-    id: "learn", phase: "operate", title: "Write it up, prevent it",
+    id: "learn", pic: "incident", phase: "operate", title: "Write it up, prevent it",
     what: "A one-page incident note: impact and scope, first signal, timeline (relative), hypotheses rejected, root cause, containment, corrective change, regression test, prevention owner, and links to real evidence. No invented outage minutes or business losses. Turn the lesson into a preflight check, a test or a runbook line.",
     analogy: "After a fire drill, the teacher writes down what went well, what was slow, and what to change (like 'the back door sticks, fix the hinge'). Next time, the drill goes better because something actually changed.",
     tools: ["drills/04-duplicate-build-numbers/incident.md", "evidence/README.md links each claim to command output", "docs/incident-runbook.md"],
@@ -706,81 +706,218 @@ const ROLLBACK = [
   { id: "r5", t: "You notice the production candidate on TestFlight points at the staging API. It hasn't been submitted for review.", ok: ["D"], w: "Nothing is in users' hands yet, so there's nothing to pause. Stop promotion and build a correct candidate with a new build number; add a config preflight.", an: "Catch the wrong cake before it leaves the kitchen." }
 ];
 
-/* ---------- DIAGRAMS ---------- */
-const DIAGRAMS = [
-  { id: "pipeline", t: "Trust boundaries in the pipeline", w: 900, h: 380,
-    an: "Think of a school building: visitors stay in the lobby, staff have hallway badges, and only the principal has the safe key.",
-    nodes: [
-      { id: "pr", x: 20, y: 30, t: "Fork / branch PR", s: "untrusted code", k: "untrusted", i: "Anyone can open a PR. Treat its code as a stranger's: it may try to print secrets or poison caches." },
-      { id: "val", x: 250, y: 30, t: "PR validation", s: "lint · unit · contract · sim", k: "untrusted", i: "on: pull_request with permissions: contents: read. No signing keys, no store credentials. Reports always uploaded." },
-      { id: "gate", x: 480, y: 30, t: "ci-gate", s: "always runs · required", k: "neutral", i: "The single required check. Runs with if: always(), fails if any applicable job failed or was cancelled." },
-      { id: "main", x: 710, y: 30, t: "Protected main", s: "review + checks", k: "trusted", i: "Branch protection: required ci-gate and review. Main stays releasable." },
-      { id: "stg", x: 710, y: 170, t: "Trusted build", s: "image digest · staging", k: "trusted", i: "Rebuild trusted, record image digest, deploy to staging, smoke test. Not an app-store release." },
-      { id: "beta", x: 480, y: 170, t: "Beta release", s: "env: release · signing", k: "secret", i: "Explicit run. Preflight, build number allocation, temp keychain, signed IPA/AAB, upload to TestFlight / internal track." },
-      { id: "prom", x: 250, y: 170, t: "Promotion", s: "approval · same artifact", k: "secret", i: "Protected production environment with required reviewers. Promotes the existing candidate; never recompiles." },
-      { id: "store", x: 20, y: 170, t: "Stores", s: "processing · review · rollout", k: "store", i: "Separate states: uploaded, processing, testers, review, phased/staged rollout, released." },
-      { id: "night", x: 480, y: 300, t: "Nightly", s: "device matrix · drills", k: "trusted", i: "Wider device matrix, dependency scans and controlled drills, with bounded macOS minutes." }
-    ],
-    edges: [["pr", "val"], ["val", "gate"], ["gate", "main", "merge"], ["main", "stg"], ["stg", "beta", "explicit"], ["beta", "prom", "approve"], ["prom", "store"], ["stg", "night", "schedule"]] },
-  { id: "android", t: "Android signing: two keys", w: 900, h: 320,
-    an: "Your upload key is your library card. The app signing key is the library's official stamp, kept by the librarian.",
-    nodes: [
-      { id: "ci", x: 20, y: 40, t: "Package lane", s: "./gradlew bundleRelease", k: "trusted", i: "Builds the release AAB on a trusted runner, decoding the keystore to a temp file." },
-      { id: "up", x: 250, y: 40, t: "Upload key", s: "yours · protected secret", k: "secret", i: "Signs what you upload. Lives in a secret manager. If lost, request an upload key reset." },
-      { id: "play", x: 480, y: 40, t: "Play Console", s: "verifies upload cert", k: "store", i: "Rejects AABs signed with the wrong key: 'signed with the wrong key. Found SHA1… expected…'" },
-      { id: "app", x: 710, y: 40, t: "App signing key", s: "held by Google", k: "store", i: "Play re-signs the APKs it generates. Devices verify updates against this certificate." },
-      { id: "dev", x: 710, y: 200, t: "User devices", s: "verify app signing cert", k: "user", i: "Installed apps only accept updates signed by the same app signing key." },
-      { id: "reset", x: 250, y: 200, t: "Upload key lost?", s: "request reset", k: "neutral", i: "Register a new upload certificate through Play Console. App signing key and users unaffected." }
-    ],
-    edges: [["ci", "up", "signs"], ["up", "play", "AAB"], ["play", "app", "re-sign"], ["app", "dev", "APKs"], ["reset", "play", "new cert"]] },
-  { id: "ios", t: "iOS signing in CI", w: 900, h: 330,
-    an: "The seal stamp (certificate) comes out of the locked drawer (match, read-only) into a box that gets thrown away after (temp keychain). The ticket (profile) says which letter it's allowed to seal.",
-    nodes: [
-      { id: "cert", x: 20, y: 30, t: "Distribution cert", s: "match repo · readonly", k: "secret", i: "Existing team certificate + private key, fetched read-only. CI never creates or revokes it." },
-      { id: "kc", x: 250, y: 30, t: "Temp keychain", s: "setup_ci · deleted after", k: "secret", i: "Created per job, unlocked for codesign, deleted in an always-run cleanup." },
-      { id: "prof", x: 20, y: 190, t: "Provisioning profile", s: "App ID · team · entitlements", k: "neutral", i: "Must match bundle ID, team and every entitlement. Decode with security cms -D -i." },
-      { id: "gym", x: 480, y: 110, t: "Archive + export", s: "gym / xcodebuild", k: "trusted", i: "Where distribution signing actually gets checked. Simulator builds never reach here." },
-      { id: "ipa", x: 710, y: 30, t: "IPA + dSYMs", s: "SHA-256 → manifest", k: "trusted", i: "Checksummed, stored with symbols and the release manifest." },
-      { id: "asc", x: 710, y: 190, t: "App Store Connect", s: "upload ≠ released", k: "store", i: "Uploaded, processing, testers, review, phased release: separate states." }
-    ],
-    edges: [["cert", "kc", "import"], ["kc", "gym"], ["prof", "gym"], ["gym", "ipa"], ["ipa", "asc", "upload"]] },
-  { id: "installed", t: "Who's installed right now", w: 900, h: 340,
-    an: "Many classes share one cafeteria. You can change the menu, but you can't make every class eat at the same time.",
-    nodes: [
-      { id: "v13", x: 20, y: 20, t: "1.3 installed", s: "12% · strict decoder", k: "user", i: "Never updated. Can't decode new enum values or type changes." },
-      { id: "v14", x: 20, y: 130, t: "1.4 installed", s: "61% · reads v1 status", k: "user", i: "Most users. Ignores eta_confidence." },
-      { id: "v15", x: 20, y: 240, t: "1.5 phased", s: "27% · reads eta_confidence", k: "user", i: "New field optional; feature behind eta_confidence_enabled." },
-      { id: "api", x: 330, y: 130, t: "/api/v1 contract", s: "additive only", k: "trusted", i: "One contract serving all three. Old-client fixtures are required checks." },
-      { id: "b212", x: 640, y: 50, t: "Backend #212", s: "adds eta_confidence", k: "trusted", i: "Deployed before 1.5 shipped. Additive, so 1.3 and 1.4 are unaffected." },
-      { id: "b198", x: 640, y: 210, t: "Rollback to #198?", s: "drops a field 1.5 reads", k: "danger", i: "A 'simple' backend rollback could break installed 1.5. Check compatibility with every installed version before reverting." }
-    ],
-    edges: [["v13", "api"], ["v14", "api"], ["v15", "api"], ["api", "b212", "serves"], ["api", "b198", "would serve"]] }
+/* ---------- SPRINTS: suggested 2-week sprints (assumes ~8–10 hours/week; account setup and macOS access can add time) ---------- */
+const SPRINTS = [
+  { n: 1, weeks: "Weeks 1–2", hours: "15–20 h", goal: "Toolchain, contracts and a minimal RouteReady vertical slice",
+    stations: ["toolchain", "branch", "backend"], drills: [5, 6], diagrams: ["fullpipe"],
+    deliver: ["docs/toolchain.md filled and dated", "OpenAPI contract with v1 fixtures", "One simulated bus event reaches the API and shows in both apps (simulator/emulator)", "docs/progress.md started"],
+    exit: "Clean local vertical slice on both platforms from a fresh clone." },
+  { n: 2, weeks: "Weeks 3–4", hours: "15–20 h", goal: "PR validation and trunk workflow",
+    stations: ["prci", "gate", "main"], drills: [7, 8, 9, 10], diagrams: ["pipeline"],
+    deliver: ["pr-ci.yml with change detection and ci-gate", "Branch protection on main", "Fork canary test", "Trusted main build with image digest + staging smoke"],
+    exit: "A deliberately bad PR (failing test + breaking contract) is blocked; the corrected PR passes." },
+  { n: 3, weeks: "Weeks 5–6", hours: "18–25 h", goal: "Fastlane packaging, signing and manifests",
+    stations: ["preflight", "sign", "manifest"], drills: [1, 2, 3, 4], diagrams: ["ios", "android", "buildnum"],
+    deliver: ["verify/package lanes for iOS and Android", "Build-number allocator with a race test", "Signing preflights (profile + upload cert)", "release-manifest.json with checksums and symbols"],
+    exit: "Real signed IPA/AAB with manifests, or each blocker documented as BLOCKED with the missing account named." },
+  { n: 4, weeks: "Weeks 7–8", hours: "15–20 h", goal: "Beta delivery and API compatibility",
+    stations: ["beta", "candidate", "approve", "rollout"], drills: [11, 14, 15], diagrams: ["installed"],
+    deliver: ["beta lanes upload existing artifacts only", "Separate store states recorded", "Promotion workflow with approval", "Version 2 ETA confidence behind a flag, version 1 still passing"],
+    exit: "Version 1 still works while version 2 is tested and promoted." },
+  { n: 5, weeks: "Weeks 9–10", hours: "18–25 h", goal: "StayReady and reusable pipeline adaptation",
+    stations: [], drills: [17, 18, 20], diagrams: [],
+    deliver: ["React Native native builds through the same lanes", "Tenant-boundary negative tests", "Offline idempotency test with real response loss"],
+    exit: "Native builds, tenant tests and the offline-idempotency test pass in CI." },
+  { n: 6, weeks: "Weeks 11–12", hours: "15–20 h", goal: "Observability and the six priority drills",
+    stations: ["observe", "incident"], drills: [16, 19, 12, 13], diagrams: ["observe", "incident"],
+    deliver: ["Structured logs with request IDs", "Symbols uploaded from the exact build", "Priority drills 1, 3, 4, 10, 11, 16 written up"],
+    exit: "Saved diagnostics and verified recovery for each priority drill." },
+  { n: 7, weeks: "Weeks 13–14", hours: "12–18 h", goal: "Remaining drills and mock interviews",
+    stations: ["learn"], drills: [], diagrams: [],
+    deliver: ["Remaining drill notes", "Both 8-minute walkthroughs recorded", "Interview Room: all questions scored"],
+    exit: "You can explain every decision without reading generated code." }
 ];
 
-/* ---------- FLASHCARDS ---------- */
+/* ---------- DIAGRAMS (blueprints). n = reading order. ---------- */
+const DIAGRAMS = [
+  { id: "fullpipe", t: "Code to customer: the whole road", w: 900, h: 560, sprint: 1, time: "Read: 10 min · Build all of it: the full 14 weeks",
+    what: "The master map. Every station of the Journey as one connected road, from pinning tools to writing up an incident. Every other blueprint zooms into one stretch of this road.",
+    read: "Follow the numbers. Row 1 runs left to right, row 2 comes back right to left, and so on, like reading a snake. Colors show who's trusted: amber dashed = untrusted code, green = trusted builds, orange = holds secrets, blue = stores, grey = phones.",
+    an: "A board game path from START to FINISH. You can't skip squares, and each square has a rule card.",
+    nodes: [
+      { id: "a", n: 1, x: 20, y: 30, t: "Pin toolchain", s: "Xcode · Gradle · Ruby", k: "neutral", i: "docs/toolchain.md: exact versions, verified date, lockfiles. Station 1." },
+      { id: "b", n: 2, x: 250, y: 30, t: "Branch + flag", s: "Git · feature flags", k: "neutral", i: "Short-lived branch; unfinished work behind a flag defaulting OFF. Station 2." },
+      { id: "c", n: 3, x: 480, y: 30, t: "PR CI", s: "untrusted · no secrets", k: "untrusted", i: "Lint, unit, contract, simulator/emulator tests on pull_request with read-only token. Station 3." },
+      { id: "d", n: 4, x: 710, y: 30, t: "ci-gate + merge", s: "required check · review", k: "neutral", i: "Always-running aggregate check, human review, merge to protected main. Station 4." },
+      { id: "e", n: 5, x: 710, y: 170, t: "Trusted main build", s: "image digest · staging", k: "trusted", i: "Rebuild trusted, record image digest, deploy staging, smoke test. Station 5." },
+      { id: "f", n: 6, x: 480, y: 170, t: "Backend first", s: "additive /api/v1", k: "trusted", i: "Ship the compatible API before the app; old-client fixtures pass. Station 6." },
+      { id: "g", n: 7, x: 250, y: 170, t: "Preflight + number", s: "allocator · trusted SHA", k: "secret", i: "Explicit release run; durable, concurrency-safe build number. Station 7." },
+      { id: "h", n: 8, x: 20, y: 170, t: "Sign + package", s: "temp keychain · upload key", k: "secret", i: "IPA + dSYMs, AAB + mapping, signed with protected assets. Station 8." },
+      { id: "i", n: 9, x: 20, y: 310, t: "Manifest", s: "SHA-256 · symbols", k: "trusted", i: "release-manifest.json ties binary to source, toolchain, backend digest. Station 9." },
+      { id: "j", n: 10, x: 250, y: 310, t: "Beta upload", s: "TestFlight · internal track", k: "store", i: "Upload the existing artifact; record uploaded/processing/testers separately. Station 10." },
+      { id: "k", n: 11, x: 480, y: 310, t: "Candidate + approval", s: "prod config · reviewers", k: "secret", i: "Test the exact candidate; approval gate; store review. Stations 11–12." },
+      { id: "l", n: 12, x: 710, y: 310, t: "Gradual rollout", s: "phased · staged · cohorts", k: "store", i: "Apple 7-day phased release, Play staged %, backend flag cohorts. Station 13." },
+      { id: "m", n: 13, x: 710, y: 450, t: "Observe", s: "crashes · symbols · logs", k: "neutral", i: "Release-segmented dashboards with exact symbols. Station 14." },
+      { id: "o", n: 14, x: 480, y: 450, t: "Respond", s: "flag off · pause · roll fwd", k: "user", i: "Contain, fix with a replacement binary or compatible backend. Station 15." },
+      { id: "p", n: 15, x: 250, y: 450, t: "Write it up", s: "incident note · prevention", k: "neutral", i: "Evidence-linked note; a preflight or test so it can't recur. Station 16." }
+    ],
+    edges: [["a", "b"], ["b", "c"], ["c", "d"], ["d", "e", "merge"], ["e", "f"], ["f", "g"], ["g", "h"], ["h", "i"], ["i", "j"], ["j", "k"], ["k", "l"], ["l", "m"], ["m", "o"], ["o", "p"]] },
+  { id: "pipeline", t: "Trust boundaries in the pipeline", w: 900, h: 400, sprint: 2, time: "Read: 5 min · Build: Sprint 2 (~15–20 h)",
+    what: "Which parts of CI may touch secrets and which may not. The line between untrusted pull-request code and trusted release jobs is the single most important security boundary in mobile CI.",
+    read: "Start at 1 (a stranger's PR) and follow the arrows. Dashed amber boxes run untrusted code with no secrets. Orange boxes are the only places signing keys and store credentials exist, and only after explicit triggers and approvals.",
+    an: "A school building: visitors stay in the lobby, staff have hallway badges, and only the principal has the safe key.",
+    nodes: [
+      { id: "pr", n: 1, x: 20, y: 30, t: "Fork / branch PR", s: "untrusted code", k: "untrusted", i: "Anyone can open a PR. Treat its code as a stranger's: it may try to print secrets or poison caches." },
+      { id: "val", n: 2, x: 250, y: 30, t: "PR validation", s: "lint · unit · contract", k: "untrusted", i: "on: pull_request with permissions: contents: read. No signing keys, no store credentials. Reports always uploaded." },
+      { id: "gate", n: 3, x: 480, y: 30, t: "ci-gate", s: "always runs · required", k: "neutral", i: "The single required check. Runs with if: always(), fails if any applicable job failed or was cancelled." },
+      { id: "main", n: 4, x: 710, y: 30, t: "Protected main", s: "review + checks", k: "trusted", i: "Branch protection: required ci-gate and review. Main stays releasable." },
+      { id: "stg", n: 5, x: 710, y: 180, t: "Trusted build", s: "image digest · staging", k: "trusted", i: "Rebuild trusted, record image digest, deploy to staging, smoke test. Not an app-store release." },
+      { id: "beta", n: 6, x: 480, y: 180, t: "Beta release", s: "env: release · signing", k: "secret", i: "Explicit run. Preflight, build number allocation, temp keychain, signed IPA/AAB, upload to TestFlight / internal track." },
+      { id: "prom", n: 7, x: 250, y: 180, t: "Promotion", s: "approval · same artifact", k: "secret", i: "Protected production environment with required reviewers. Promotes the existing candidate; never recompiles." },
+      { id: "store", n: 8, x: 20, y: 180, t: "Stores", s: "processing · review · rollout", k: "store", i: "Separate states: uploaded, processing, testers, review, phased/staged rollout, released." },
+      { id: "night", n: 9, x: 480, y: 320, t: "Nightly", s: "device matrix · drills", k: "trusted", i: "Wider device matrix, dependency scans and controlled drills, with bounded macOS minutes." }
+    ],
+    edges: [["pr", "val"], ["val", "gate"], ["gate", "main", "merge"], ["main", "stg"], ["stg", "beta", "explicit"], ["beta", "prom", "approve"], ["prom", "store"], ["stg", "night", "schedule"]] },
+  { id: "ios", t: "iOS signing in CI", w: 900, h: 350, sprint: 3, time: "Read: 5 min · Build: Sprint 3 (~8–12 h of the sprint)",
+    what: "How a CI job signs an iOS app without anyone's laptop: a certificate fetched read-only, a throwaway keychain, a profile that must match the app, and an export step where the check actually happens.",
+    read: "Two inputs (1 and 3) feed the archive step (4). The certificate goes through the temporary keychain (2) first. Output (5) is checksummed before upload (6).",
+    an: "The seal stamp (certificate) comes out of the locked drawer (match, read-only) into a box that's thrown away after (temp keychain). The ticket (profile) says which letter it may seal.",
+    nodes: [
+      { id: "cert", n: 1, x: 20, y: 30, t: "Distribution cert", s: "match repo · readonly", k: "secret", i: "Existing team certificate + private key, fetched read-only. CI never creates or revokes it." },
+      { id: "kc", n: 2, x: 250, y: 30, t: "Temp keychain", s: "setup_ci · deleted after", k: "secret", i: "Created per job, unlocked for codesign, deleted in an always-run cleanup." },
+      { id: "prof", n: 3, x: 20, y: 200, t: "Provisioning profile", s: "App ID · team · entitlements", k: "neutral", i: "Must match bundle ID, team and every entitlement. Decode with security cms -D -i." },
+      { id: "gym", n: 4, x: 480, y: 115, t: "Archive + export", s: "xcodebuild / gym", k: "trusted", i: "Where distribution signing actually gets checked. Simulator builds never reach here." },
+      { id: "ipa", n: 5, x: 710, y: 30, t: "IPA + dSYMs", s: "SHA-256 → manifest", k: "trusted", i: "Checksummed, stored with symbols and the release manifest." },
+      { id: "asc", n: 6, x: 710, y: 200, t: "App Store Connect", s: "upload ≠ released", k: "store", i: "Uploaded, processing, testers, review, phased release: separate states." }
+    ],
+    edges: [["cert", "kc", "import"], ["kc", "gym"], ["prof", "gym"], ["gym", "ipa"], ["ipa", "asc", "upload"]] },
+  { id: "android", t: "Android signing: two keys", w: 900, h: 340, sprint: 3, time: "Read: 4 min · Build: Sprint 3 (~6–8 h of the sprint)",
+    what: "Play App Signing uses two different keys. You sign uploads with your upload key; Google holds the app signing key that phones actually check. Mixing them up is the most common Android release incident.",
+    read: "Follow 1 → 5 along the top and down to the phones. Box 6 is the recovery path when the upload key is lost; note it doesn't touch the app signing key.",
+    an: "Your upload key is your library card. The app signing key is the library's official stamp, kept by the librarian.",
+    nodes: [
+      { id: "ci", n: 1, x: 20, y: 40, t: "Package lane", s: "gradlew bundleRelease", k: "trusted", i: "Builds the release AAB on a trusted runner, decoding the keystore to a temp file." },
+      { id: "up", n: 2, x: 250, y: 40, t: "Upload key", s: "yours · protected secret", k: "secret", i: "Signs what you upload. Lives in a secret manager. If lost, request an upload key reset." },
+      { id: "play", n: 3, x: 480, y: 40, t: "Play Console", s: "verifies upload cert", k: "store", i: "Rejects AABs signed with the wrong key: 'signed with the wrong key. Found SHA1… expected…'" },
+      { id: "app", n: 4, x: 710, y: 40, t: "App signing key", s: "held by Google", k: "store", i: "Play re-signs the APKs it generates. Devices verify updates against this certificate." },
+      { id: "dev", n: 5, x: 710, y: 210, t: "User devices", s: "verify app signing cert", k: "user", i: "Installed apps only accept updates signed by the same app signing key." },
+      { id: "reset", n: 6, x: 250, y: 210, t: "Upload key lost?", s: "request reset", k: "neutral", i: "Register a new upload certificate through Play Console. App signing key and users unaffected." }
+    ],
+    edges: [["ci", "up", "signs"], ["up", "play", "AAB"], ["play", "app", "re-sign"], ["app", "dev", "APKs"], ["reset", "play", "new cert"]] },
+  { id: "buildnum", t: "Build numbers and the release manifest", w: 900, h: 330, sprint: 3, time: "Read: 4 min · Build: Sprint 3 (~4–6 h)",
+    what: "How one binary gets one number and one record. A durable allocator hands out numbers, the package lane writes a manifest with checksums, and every later step (upload, promote) checks the artifact against that record.",
+    read: "Left to right: request (1), allocate (2), package (3), write manifest (4). The bottom row is every retry or promotion checking back against the manifest instead of rebuilding.",
+    an: "A deli ticket machine plus a packing slip: one ticket per order, and the slip proves which sandwich is in the bag.",
+    nodes: [
+      { id: "run", n: 1, x: 20, y: 30, t: "Release run", s: "trusted SHA on main", k: "trusted", i: "workflow_dispatch from main only; preflight checks app ID and settings." },
+      { id: "alloc", n: 2, x: 250, y: 30, t: "Allocator", s: "build-numbers branch · CAS", k: "secret", i: "git push as compare-and-swap; never below the store's latest; same run reuses its number." },
+      { id: "pkg", n: 3, x: 480, y: 30, t: "Package lane", s: "IPA / AAB + symbols", k: "trusted", i: "Builds once with the allocated number." },
+      { id: "man", n: 4, x: 710, y: 30, t: "Manifest", s: "SHA-256 · digest · contract", k: "trusted", i: "app ID, build, SHA, toolchain, checksum, backend digest, states. No secrets." },
+      { id: "retry", n: 5, x: 480, y: 190, t: "Upload retry", s: "same file · same checksum", k: "store", i: "verify-manifest.sh compares checksums; retries never rebuild." },
+      { id: "prom", n: 6, x: 250, y: 190, t: "Promotion", s: "same build number", k: "secret", i: "Promotes the existing build; the manifest proves it's the tested one." }
+    ],
+    edges: [["run", "alloc"], ["alloc", "pkg", "number"], ["pkg", "man"], ["man", "retry", "verify"], ["retry", "prom"]] },
+  { id: "installed", t: "Who's installed right now", w: 900, h: 360, sprint: 4, time: "Read: 4 min · Build: Sprint 4 (~4 h of contract tests)",
+    what: "Why mobile rollback is different: several app versions are installed at once and the backend must serve all of them. A backend rollback can break the newest version as easily as a bad deploy breaks the oldest.",
+    read: "The three installed versions (1–3) all talk to one contract (4). The two backends on the right (5, 6) are what you might deploy; check each against every installed version.",
+    an: "Many classes share one cafeteria. You can change the menu, but you can't make every class eat at the same time.",
+    nodes: [
+      { id: "v13", n: 1, x: 20, y: 20, t: "1.3 installed", s: "12% · strict decoder", k: "user", i: "Never updated. Can't decode new enum values or type changes." },
+      { id: "v14", n: 2, x: 20, y: 140, t: "1.4 installed", s: "61% · reads v1 status", k: "user", i: "Most users. Ignores eta_confidence." },
+      { id: "v15", n: 3, x: 20, y: 260, t: "1.5 phased", s: "27% · eta_confidence", k: "user", i: "New field optional; feature behind eta_confidence_enabled." },
+      { id: "api", n: 4, x: 330, y: 140, t: "/api/v1 contract", s: "additive only", k: "trusted", i: "One contract serving all three. Old-client fixtures are required checks." },
+      { id: "b212", n: 5, x: 640, y: 60, t: "Backend #212", s: "adds eta_confidence", k: "trusted", i: "Deployed before 1.5 shipped. Additive, so 1.3 and 1.4 are unaffected." },
+      { id: "b198", n: 6, x: 640, y: 230, t: "Rollback to #198?", s: "drops a field 1.5 reads", k: "danger", i: "A 'simple' backend rollback could break installed 1.5. Check compatibility with every installed version before reverting." }
+    ],
+    edges: [["v13", "api"], ["v14", "api"], ["v15", "api"], ["api", "b212", "serves"], ["api", "b198", "would serve"]] },
+  { id: "observe", t: "From crash to source line", w: 900, h: 330, sprint: 6, time: "Read: 4 min · Build: Sprint 6 (~5–8 h)",
+    what: "How a crash on a phone becomes a readable stack trace and a linked backend log. It only works if the exact symbols from the shipped build were kept and uploaded with the right release and dist.",
+    read: "Top row is the crash path (1–4); bottom row is the evidence you prepared at build time (5) and the backend correlation (6).",
+    an: "Smoke detectors are only useful if each one is labeled with its room. Symbols are the labels.",
+    nodes: [
+      { id: "crash", n: 1, x: 20, y: 30, t: "Crash on device", s: "release 1.5 · build 57", k: "user", i: "Raw addresses, no names yet." },
+      { id: "sdk", n: 2, x: 250, y: 30, t: "Crash SDK", s: "release + dist + request ID", k: "neutral", i: "Tags the event with marketing version, build number and the last request ID." },
+      { id: "sym", n: 3, x: 480, y: 30, t: "Symbolication", s: "dSYM UUID / mapping", k: "trusted", i: "Matches the binary's UUID to the uploaded dSYM or mapping.txt." },
+      { id: "line", n: 4, x: 710, y: 30, t: "Source line", s: "ETAConfidenceView.swift:88", k: "trusted", i: "Readable stack trace, segmented by release and cohort." },
+      { id: "kept", n: 5, x: 480, y: 190, t: "Symbols from build", s: "retained > support window", k: "secret", i: "Uploaded from the package job's artifacts, never rebuilt." },
+      { id: "log", n: 6, x: 710, y: 190, t: "Backend logs", s: "same request_id", k: "neutral", i: "Correlate the crash with the API request that preceded it." }
+    ],
+    edges: [["crash", "sdk"], ["sdk", "sym"], ["sym", "line"], ["kept", "sym", "uploaded"], ["line", "log", "request_id"]] },
+  { id: "incident", t: "Incident response loop", w: 900, h: 330, sprint: 6, time: "Read: 4 min · Practice: every drill (~45–90 min each)",
+    what: "The order to work an incident in mobile: contain with levers that reach installed apps, find the cause with evidence, fix through the normal pipeline, verify against the real failure, then prevent it.",
+    read: "Clockwise from 1. Box 3 lists the containment levers and which ones actually reach phones already installed.",
+    an: "Fire drill: stop the class, find the smoke, fix the wiring the official way, check the alarm is quiet, and write down what to change.",
+    nodes: [
+      { id: "sig", n: 1, x: 20, y: 30, t: "Signal", s: "crash rate · alert · ticket", k: "neutral", i: "Relative time, which release, which cohort." },
+      { id: "scope", n: 2, x: 250, y: 30, t: "Scope", s: "who's installed · which cohort", k: "user", i: "Platforms, versions, flag cohorts, backend digests." },
+      { id: "contain", n: 3, x: 480, y: 30, t: "Contain", s: "flag off · pause · compat backend", k: "secret", i: "Flag off and backend fixes reach installed apps. Pause/halt only stops new installs." },
+      { id: "fix", n: 4, x: 710, y: 30, t: "Fix", s: "replacement binary · roll forward", k: "trusted", i: "Higher build number through the normal gates." },
+      { id: "verify", n: 5, x: 710, y: 190, t: "Verify", s: "the actual failure path", k: "trusted", i: "Including the installed population, not just new installs." },
+      { id: "prevent", n: 6, x: 480, y: 190, t: "Prevent + write up", s: "preflight · test · note", k: "neutral", i: "Owner, regression test, evidence links." }
+    ],
+    edges: [["sig", "scope"], ["scope", "contain"], ["contain", "fix"], ["fix", "verify"], ["verify", "prevent"]] }
+];
+
+/* ---------- TERMS: in pipeline order, tagged by tool, connected to related terms ---------- */
 const CARDS = [
-  ["AAB", "Android App Bundle. What you upload to Play; Play generates device-specific APKs.", "A box of LEGO pieces; the store builds the right model for each phone."],
-  ["Upload key", "Your key that signs uploads to Play. Resettable through Play Console.", "Your library card."],
-  ["App signing key", "Held by Google under Play App Signing. Devices verify updates against it.", "The library's official stamp."],
-  ["match readonly", "Fastlane fetches existing certs/profiles without creating or revoking anything.", "Reading the recipe, not rewriting it."],
-  ["setup_ci", "Fastlane action that creates a temporary keychain and puts match in readonly mode on CI.", "A throwaway lockbox for the seal stamp."],
-  ["dSYM", "Debug symbols for an iOS build, matched by UUID. Needed to read crash stacks.", "Room labels on smoke detectors."],
-  ["xcresult", "Xcode's test result bundle: logs, screenshots, timing. Save it as evidence.", "The graded test with the teacher's notes."],
-  ["Phased release", "Apple's 7-day automatic-update schedule. Pausable; manual updates still allowed.", "Classes go to recess in a set order."],
-  ["Staged rollout", "Play: you choose the percentage and can halt.", "A dimmer switch."],
-  ["Release manifest", "Machine-readable record tying a binary to SHA, toolchain, checksums, symbols, backend digest and states.", "The packing slip with fingerprints."],
-  ["Idempotency key", "Client-chosen key so a retried request has exactly one effect.", "Your deli ticket: same ticket, same order."],
-  ["Expand/contract", "Add new schema, backfill, move readers, remove old later.", "Build the new hallway before closing the old one."],
-  ["Readiness vs liveness", "Readiness: can I take traffic? Liveness: should I be restarted?", "'Do you have your homework?' vs 'Are you awake?'"],
-  ["OIDC", "Short-lived cloud credentials federated from the CI identity. Doesn't replace store or signing secrets.", "A visitor badge, not the safe key."],
-  ["pull_request_target", "Runs in the base repo's privileged context. Never run fork code in it.", "A stranger at the teacher's desk."],
-  ["Aggregate check", "One always-running required job that passes only if every applicable job passed.", "The hall monitor who always shows up."],
-  ["Runtime version", "Expo: OTA updates only reach binaries with a matching runtime. Native changes need a new one.", "New game levels, same console."],
-  ["versionCode / CFBundleVersion", "Build numbers. Must increase and never be reused for a different binary.", "Deli ticket numbers."],
-  ["Marketing version", "1.4.0 shown to users. Independent from API version.", "The textbook edition, not the classroom number."],
-  ["Feature cohort", "Backend-controlled group that sees a feature. Switchable for installed apps.", "Which kids get to try the new slide."],
-  ["Same-artifact promotion", "Move the exact tested bytes between tracks; never rebuild.", "Bring the cake you taste-tested."],
-  ["Concurrency group", "Serializes runs. PRs: cancel superseded. Releases: never cancel mid-upload.", "One person at the mail slot at a time."]
+  { t: "Toolchain record", st: "toolchain", tool: "Docs", d: "docs/toolchain.md: exact Xcode, runner image, JDK, Gradle, AGP, Ruby, Fastlane versions with the date verified.", a: "The recipe card everyone bakes from.", x: ["Runner image", "Gradle wrapper", "Gemfile.lock"] },
+  { t: "Runner image", st: "toolchain", tool: "GitHub Actions", d: "The OS image a hosted job runs on (e.g. macos-15). Pin it; macos-latest drifts.", a: "The oven model. Recipes change if the school swaps ovens.", x: ["Toolchain record", "Simulator destination"] },
+  { t: "xcode-select", st: "toolchain", tool: "Xcode", d: "Chooses which installed Xcode the job uses (sudo xcode-select -s /Applications/Xcode_….app).", a: "Picking which oven in the kitchen to use.", x: ["Runner image"] },
+  { t: "Gradle wrapper", st: "toolchain", tool: "Gradle", d: "gradlew + gradle-wrapper.properties pin Gradle's version; validate its checksum in CI.", a: "A sealed measuring cup that's always the same size.", x: ["Toolchain record", "AAB"] },
+  { t: "Gemfile.lock", st: "toolchain", tool: "Bundler / Fastlane", d: "Locks exact Ruby gem versions, including Fastlane. Run lanes with bundle exec.", a: "The exact brand list for every ingredient.", x: ["Toolchain record", "Fastlane lane"] },
+  { t: "Trunk-based development", st: "branch", tool: "Git", d: "Short-lived branches merged often into protected main; main stays releasable.", a: "Return library books fast so the shelf stays in order.", x: ["Feature flag", "Protected branch"] },
+  { t: "Feature flag", st: "branch", tool: "Backend", d: "Server-controlled switch that hides unfinished behavior and can turn it off on installed apps.", a: "A curtain on the stage; also the light switch for the slide.", x: ["Trunk-based development", "Feature cohort"] },
+  { t: "pull_request trigger", st: "prci", tool: "GitHub Actions", d: "Runs PR code with a read-only token and no secrets for forks. The safe trigger for untrusted code.", a: "Checking a stranger's homework without giving them keys.", x: ["pull_request_target", "Concurrency group"] },
+  { t: "pull_request_target", st: "prci", tool: "GitHub Actions", d: "Runs in the base repo's privileged context. Never check out and run PR code in it.", a: "A stranger at the teacher's desk with the answer key.", x: ["pull_request trigger", "Protected environment"] },
+  { t: "Simulator destination", st: "prci", tool: "Xcode", d: "-destination 'platform=iOS Simulator,id=…'. Pick from xcrun simctl list devices available.", a: "Choosing a practice stage that actually exists today.", x: ["Runner image", "xcresult"] },
+  { t: "xcresult", st: "prci", tool: "Xcode", d: "Xcode's test result bundle: logs, screenshots, timings. Upload it as evidence.", a: "The graded test with the teacher's notes.", x: ["Simulator destination"] },
+  { t: "Dependency cache key", st: "prci", tool: "GitHub Actions", d: "Key includes OS, arch, toolchain and lockfile hash; untrusted runs don't write caches release jobs read.", a: "Label the lunchbox with whose it is and which day.", x: ["Gradle wrapper", "Gemfile.lock"] },
+  { t: "Concurrency group", st: "prci", tool: "GitHub Actions", d: "Serializes runs. Cancel superseded PR runs; never cancel a release mid-upload.", a: "One person at the mail slot at a time.", x: ["pull_request trigger", "Upload ≠ released"] },
+  { t: "Aggregate check (ci-gate)", st: "gate", tool: "GitHub Actions", d: "One always-running required job that passes only if every applicable job passed.", a: "The hall monitor who always shows up.", x: ["Path filter", "Protected branch"] },
+  { t: "Path filter", st: "gate", tool: "GitHub Actions", d: "Decides which jobs run. At workflow level it can leave required checks pending; do it inside a job.", a: "Only checking the rooms that changed, without skipping the door check.", x: ["Aggregate check (ci-gate)"] },
+  { t: "Protected branch", st: "gate", tool: "GitHub", d: "Rules on main: required checks, reviews, no force pushes; admins can bypass if configured.", a: "The classroom door that only opens with a hall pass.", x: ["Trunk-based development", "Aggregate check (ci-gate)"] },
+  { t: "Image digest", st: "main", tool: "Docker", d: "registry/name@sha256:… names exactly one image; tags can move.", a: "A fingerprint instead of a sticky note.", x: ["Staging smoke test", "Release manifest"] },
+  { t: "Staging smoke test", st: "main", tool: "Scripts", d: "Quick checks against the deployed digest, including a negative auth test.", a: "Flick the lights on after the electrician leaves.", x: ["Image digest"] },
+  { t: "API contract (OpenAPI)", st: "backend", tool: "OpenAPI", d: "The shape every client relies on. Breaking changes are blocked by contract checks.", a: "The bike-rack slot sizes.", x: ["Additive change", "Old-client fixture"] },
+  { t: "Additive change", st: "backend", tool: "Backend", d: "Add optional fields or endpoints; never rename, remove or retype what installed apps read.", a: "Add new wide slots; keep the old skinny ones.", x: ["API contract (OpenAPI)", "Expand/contract migration"] },
+  { t: "Old-client fixture", st: "backend", tool: "Contract tests", d: "Recorded responses the previous app version decodes; replayed against every candidate API.", a: "A time machine for the oldest bikes.", x: ["API contract (OpenAPI)"] },
+  { t: "Expand/contract migration", st: "backend", tool: "Database", d: "Expand → backfill → transition readers → contract later, so every running version works.", a: "Build the new hallway before closing the old one.", x: ["Additive change"] },
+  { t: "Release preflight", st: "preflight", tool: "Fastlane / scripts", d: "Fails fast on untrusted commit, wrong app ID, bad number or missing settings before signing.", a: "Checking the permission slip before the bus leaves.", x: ["Build number allocator", "Fastlane lane"] },
+  { t: "Build number allocator", st: "preflight", tool: "Scripts", d: "One durable, concurrency-safe source of build numbers per app/platform; retries reuse.", a: "The deli ticket machine.", x: ["CFBundleVersion / versionCode", "Release manifest"] },
+  { t: "CFBundleVersion / versionCode", st: "preflight", tool: "Xcode / Gradle", d: "The build numbers stores see. Must increase and never be reused for a different binary.", a: "Ticket numbers.", x: ["Build number allocator", "Marketing version"] },
+  { t: "Marketing version", st: "preflight", tool: "Xcode / Gradle", d: "1.5.0 shown to users. Independent from build number and from API version.", a: "The textbook edition, not the classroom number.", x: ["CFBundleVersion / versionCode", "API contract (OpenAPI)"] },
+  { t: "Fastlane lane", st: "sign", tool: "Fastlane", d: "A named automation (verify, package, beta, promote) that runs the same locally and in CI.", a: "A recipe card with numbered steps.", x: ["fastlane match (readonly)", "setup_ci"] },
+  { t: "Distribution certificate", st: "sign", tool: "Apple", d: "Team certificate + private key that signs App Store builds. Created once by an admin.", a: "The king's seal stamp.", x: ["Provisioning profile", "fastlane match (readonly)"] },
+  { t: "Provisioning profile", st: "sign", tool: "Apple", d: "Binds App ID, team, certificate and entitlements. Must match the app at export.", a: "A ticket for one seat.", x: ["Distribution certificate", "Entitlements"] },
+  { t: "Entitlements", st: "sign", tool: "Xcode", d: "Capabilities the app claims (push, associated domains). The profile must include each.", a: "Special permissions listed on the ticket.", x: ["Provisioning profile"] },
+  { t: "fastlane match (readonly)", st: "sign", tool: "Fastlane", d: "Fetches existing certs/profiles from an encrypted store without creating or revoking anything.", a: "Reading the recipe, not rewriting it.", x: ["setup_ci", "Distribution certificate"] },
+  { t: "setup_ci", st: "sign", tool: "Fastlane", d: "Creates a temporary keychain on CI and puts match in readonly mode.", a: "A throwaway lockbox for the seal stamp.", x: ["Temporary keychain", "fastlane match (readonly)"] },
+  { t: "Temporary keychain", st: "sign", tool: "macOS", d: "Per-job keychain unlocked for codesign and deleted in an always-run cleanup.", a: "A lockbox you shred after use.", x: ["setup_ci"] },
+  { t: "AAB", st: "sign", tool: "Gradle", d: "Android App Bundle uploaded to Play; Play generates device APKs.", a: "A box of LEGO pieces; the store builds each model.", x: ["Upload key", "App signing key"] },
+  { t: "Upload key", st: "sign", tool: "Play Console", d: "Your key that signs uploads. Resettable through Play Console if lost.", a: "Your library card.", x: ["App signing key", "AAB"] },
+  { t: "App signing key", st: "sign", tool: "Play Console", d: "Held by Google under Play App Signing; devices verify updates against it.", a: "The library's official stamp.", x: ["Upload key"] },
+  { t: "Release manifest", st: "manifest", tool: "Scripts", d: "JSON tying a binary to SHA, toolchain, checksum, symbols, backend digest and states. No secrets.", a: "The packing slip with fingerprints.", x: ["SHA-256 checksum", "dSYM", "Image digest"] },
+  { t: "SHA-256 checksum", st: "manifest", tool: "shasum", d: "Fingerprint of the artifact; verified before every upload and promotion.", a: "A fingerprint on the package.", x: ["Release manifest", "Same-artifact promotion"] },
+  { t: "dSYM", st: "manifest", tool: "Xcode", d: "iOS debug symbols matched by UUID; keep the exact ones from the shipped build.", a: "Room labels on the smoke detectors.", x: ["Symbolication", "mapping.txt"] },
+  { t: "mapping.txt", st: "manifest", tool: "Gradle / R8", d: "Android deobfuscation map for minified builds; keep per release.", a: "The decoder ring for scrambled names.", x: ["dSYM", "Symbolication"] },
+  { t: "TestFlight", st: "beta", tool: "App Store Connect", d: "Apple's beta distribution. Internal testers after processing; external testers need beta review.", a: "The practice audience.", x: ["Upload ≠ released", "Internal testing track"] },
+  { t: "Internal testing track", st: "beta", tool: "Play Console", d: "Fast Play track for your team; promote the same versionCode onward.", a: "Friends try the toy first.", x: ["TestFlight", "Staged rollout"] },
+  { t: "Upload ≠ released", st: "beta", tool: "Stores", d: "Uploaded, processing, testers available, in review, approved, rolling out, released are separate states.", a: "Dropped at the post office isn't delivered.", x: ["TestFlight", "Release manifest"] },
+  { t: "Production candidate", st: "candidate", tool: "Release", d: "The exact binary you intend to ship, pointed at production config.", a: "Taste the actual cake, not a cupcake.", x: ["Same-artifact promotion"] },
+  { t: "Same-artifact promotion", st: "candidate", tool: "Release", d: "Move the tested bytes between tracks; never rebuild for production.", a: "Bring the cake you taste-tested.", x: ["Production candidate", "SHA-256 checksum"] },
+  { t: "Protected environment", st: "approve", tool: "GitHub Actions", d: "Holds release secrets and requires named reviewers before a job runs.", a: "The principal's sign-off desk.", x: ["App Review", "pull_request_target"] },
+  { t: "App Review", st: "approve", tool: "App Store Connect", d: "Apple's review of a submitted build; report its state truthfully.", a: "The bus company checks the field-trip form too.", x: ["Protected environment", "Phased release"] },
+  { t: "Phased release", st: "rollout", tool: "App Store Connect", d: "Apple's fixed 7-day schedule for automatic updates; pausable; manual updates still allowed.", a: "Classes go to recess in a set order.", x: ["Staged rollout", "Feature cohort"] },
+  { t: "Staged rollout", st: "rollout", tool: "Play Console", d: "You choose and raise the percentage; you can halt.", a: "A dimmer switch.", x: ["Phased release", "Halt rollout"] },
+  { t: "Feature cohort", st: "rollout", tool: "Backend", d: "Server-chosen group that sees a feature; can be switched off for installed apps.", a: "Which kids try the new slide.", x: ["Feature flag", "Phased release"] },
+  { t: "Crash-free sessions", st: "observe", tool: "Crash reporting", d: "Share of sessions without a crash, compared per release with sample size.", a: "How many recesses ended with nobody hurt.", x: ["Symbolication"] },
+  { t: "Symbolication", st: "observe", tool: "Sentry / crash tool", d: "Turning addresses into function names and lines using the exact dSYM or mapping.", a: "Reading the room label on the alarm.", x: ["dSYM", "mapping.txt", "Request ID"] },
+  { t: "Request ID", st: "observe", tool: "Logs", d: "ID passed from app to API so a crash can be matched to backend logs.", a: "The same ticket number on both receipts.", x: ["Symbolication"] },
+  { t: "Halt rollout", st: "incident", tool: "Play Console", d: "Stops new users receiving a staged release; doesn't remove installed builds.", a: "Close the cookie jar; cookies already taken stay taken.", x: ["Staged rollout", "Replacement binary"] },
+  { t: "Replacement binary", st: "incident", tool: "Release", d: "A fixed build with a higher number through the normal gates.", a: "Send the corrected message.", x: ["Halt rollout", "Roll forward"] },
+  { t: "Roll forward", st: "incident", tool: "Release", d: "Fix by shipping something new and compatible, instead of pretending you can undo installs.", a: "You can't un-send a text; send a correction.", x: ["Replacement binary", "Feature flag"] },
+  { t: "Incident note", st: "learn", tool: "Docs", d: "Impact, signal, relative timeline, rejected hypotheses, root cause, fix, test, owner, evidence.", a: "Notes after the fire drill.", x: ["Evidence status"] },
+  { t: "Evidence status", st: "learn", tool: "Docs", d: "IMPLEMENTED, VERIFIED, SIMULATED or BLOCKED, each linked to real output.", a: "Grades only for homework you actually turned in.", x: ["Incident note"] }
 ];
 
 /* ---------- INTERVIEW: technical questions with key points ---------- */
