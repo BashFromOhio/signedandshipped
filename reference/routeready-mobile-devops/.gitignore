@@ -15,3 +15,15 @@ build/
 .gradle/
 node_modules/
 DerivedData/
+
+# Local lab kit (docs/local): toolchain, secrets and drill state never enter git
+.tools/
+.secrets/
+.drills/
+vendor/
+local.properties
+apps/ios/RouteReady.xcodeproj/
+stayready/mobile/.expo/
+stayready/mobile/android/
+stayready/mobile/ios/
+evidence/local/screen-*.png

@@ -994,22 +994,22 @@ const RUBRIC = ["Diagnosis uses evidence", "Containment is safe", "Fix addresses
 /* ---------- REFERENCE REPO LINKS (files live in repo.js) ---------- */
 const REPO_LINKS = {
   stations: {
-    toolchain: ["docs/toolchain.md", "scripts/print-toolchain.sh", "scripts/pick-simulator.sh", "Gemfile"],
-    branch: ["docs/adr/0001-trunk-based-development.md", "config/feature-flags.json", "docs/branch-protection.md"],
-    prci: [".github/workflows/pr-ci.yml", "fastlane/Fastfile"],
+    toolchain: ["docs/toolchain.md", "scripts/print-toolchain.sh", "scripts/pick-simulator.sh", "Gemfile", "docs/local/README.md", "docs/local/level-00.md", "docs/local/level-01.md", "docs/local/level-02.md", "local/02-install-android-sdk.sh"],
+    branch: ["docs/adr/0001-trunk-based-development.md", "config/feature-flags.json", "docs/branch-protection.md", "docs/local/level-06.md"],
+    prci: [".github/workflows/pr-ci.yml", "fastlane/Fastfile", "docs/local/level-04.md", "docs/local/level-05.md", "docs/local/level-09.md", "docs/local/level-10.md", "apps/android/app/build.gradle.kts"],
     gate: ["scripts/gate.sh", ".github/workflows/pr-ci.yml", "docs/branch-protection.md"],
     main: [".github/workflows/main.yml", "scripts/deploy-staging.sh", "scripts/smoke.sh", "infra/docker-compose.yml"],
-    backend: ["contracts/openapi.yaml", "contracts/fixtures/v1.3/route-status.json", "scripts/contract-check.sh", "services/api/db/migrations/README.md"],
-    preflight: ["scripts/release-preflight.sh", "scripts/allocate-build-number.sh", "config/apps.json"],
-    sign: ["fastlane/Fastfile", "fastlane/Matchfile", "scripts/signing-preflight-ios.sh", "apps/android/app/signing.gradle.kts", "scripts/verify-upload-cert.sh"],
-    manifest: ["scripts/write-manifest.sh", "evidence/release-manifest.schema.json", "scripts/verify-manifest.sh"],
+    backend: ["contracts/openapi.yaml", "contracts/fixtures/v1.3/route-status.json", "scripts/contract-check.sh", "services/api/db/migrations/README.md", "docs/local/level-03.md", "local/mock-api/server.py", "local/mock-api/check_contract.py"],
+    preflight: ["scripts/release-preflight.sh", "scripts/allocate-build-number.sh", "config/apps.json", "docs/local/level-08.md"],
+    sign: ["fastlane/Fastfile", "fastlane/Matchfile", "scripts/signing-preflight-ios.sh", "apps/android/app/build.gradle.kts", "scripts/verify-upload-cert.sh", "docs/local/level-08.md", "local/08-sign-release.sh"],
+    manifest: ["scripts/write-manifest.sh", "evidence/release-manifest.schema.json", "scripts/verify-manifest.sh", "docs/local/level-08.md"],
     beta: [".github/workflows/release-ios.yml", ".github/workflows/release-android.yml", "scripts/record-state.sh"],
-    candidate: ["scripts/preflight-env.sh", "config/apps.json"],
+    candidate: ["scripts/preflight-env.sh", "config/apps.json", "apps/android/app/build.gradle.kts"],
     approve: [".github/workflows/promote.yml", "docs/release-checklist.md"],
     rollout: ["docs/rollout.md", "config/feature-flags.json"],
-    observe: ["docs/observability.md", "scripts/upload-symbols.sh"],
-    incident: ["docs/incident-runbook.md", "docs/rollout.md"],
-    learn: ["drills/_template/incident.md", "evidence/README.md", "docs/progress.md"]
+    observe: ["docs/observability.md", "scripts/upload-symbols.sh", "docs/local/level-07.md", "apps/android/app/src/main/java/org/routeready/parent/ApiClient.kt"],
+    incident: ["docs/incident-runbook.md", "docs/rollout.md", "docs/local/level-07.md", "docs/local/level-12.md", "local/07-debug-apk.sh", "local/drill.sh"],
+    learn: ["drills/_template/incident.md", "evidence/README.md", "docs/progress.md", "docs/local/level-12.md"]
   },
   bugs: {
     b1: [".github/workflows/pr-ci.yml"], b2: [".github/workflows/pr-ci.yml"],
@@ -1164,3 +1164,20 @@ const ISSUE = {
     ac: ["Note uses relative times and links to evidence", "Root cause and rejected hypotheses listed", "Prevention ticket created with an owner"],
     sub: ["Write incident note", "Create prevention ticket"] }
 };
+
+/* ---------- RUN IT LOCALLY: the numbered scripts in the reference repo (docs/local) ---------- */
+const LOCAL_LEVELS = [
+  { n: "00", t: "Check your machine", d: "★☆☆☆☆", time: "5 min", sprint: "1", ticket: "MOB-101", cmd: "local/00-doctor.sh", an: "Check the tires before the road trip." },
+  { n: "01", t: "Install a project-only JDK 17", d: "★☆☆☆☆", time: "5–10 min", sprint: "1", ticket: "MOB-101", cmd: "local/01-install-jdk.sh", an: "Everyone in class uses the same pencil, kept in the class box." },
+  { n: "02", t: "Android SDK + Gradle + wrapper", d: "★★☆☆☆", time: "10–20 min", sprint: "1", ticket: "MOB-101", cmd: "local/02-install-android-sdk.sh", an: "Just the stove, pans and recipe; not the whole fancy kitchen." },
+  { n: "03", t: "Run the API, prove old apps still work", d: "★☆☆☆☆", time: "10 min", sprint: "1", ticket: "MOB-106", cmd: "local/03-run-api.sh --bg", an: "Test the new TV with the old remote." },
+  { n: "04", t: "Build + test the debug APK like PR CI", d: "★★☆☆☆", time: "10–15 min", sprint: "1–2", ticket: "MOB-103", cmd: "local/04-build-android.sh", an: "Check spelling, redo the math, staple it: your rough draft." },
+  { n: "05", t: "Create and boot an emulator", d: "★★★☆☆", time: "15–30 min", sprint: "1", ticket: "MOB-103", cmd: "local/05-emulator.sh", an: "A pretend phone inside your computer." },
+  { n: "06", t: "Install, run and watch the app", d: "★★☆☆☆", time: "10 min", sprint: "1", ticket: "MOB-103", cmd: "local/06-install-run.sh", an: "Put the toy in the playroom, turn it on, listen to it." },
+  { n: "07", t: "Debug the APK: inspect, logcat, crash, jdb", d: "★★★★☆", time: "45–60 min", sprint: "6–7", ticket: "MOB-115", cmd: "local/07-debug-apk.sh crash", an: "Read what the toy says when it breaks, open it up, watch it in slow motion." },
+  { n: "08", t: "Sign a release, verify, write a manifest", d: "★★★★☆", time: "30–45 min", sprint: "3", ticket: "MOB-108", cmd: "local/08-sign-release.sh", an: "Wax seal, page number and a receipt stapled to the letter." },
+  { n: "09", t: "Run the CI lane locally with Fastlane", d: "★★★☆☆", time: "20–30 min", sprint: "2–3", ticket: "MOB-103", cmd: "local/09-fastlane.sh", an: "Follow the robot chef's recipe card at home." },
+  { n: "10", t: "iOS: generate, test, run on the Simulator (Mac)", d: "★★★★☆", time: "30–60 min", sprint: "1–2", ticket: "MOB-103", cmd: "local/10-ios.sh", an: "Same toy, Apple's playroom." },
+  { n: "11", t: "React Native: run StayReady", d: "★★★★☆", time: "30–45 min", sprint: "6–7", ticket: "MOB-110", cmd: "local/11-react-native.sh", an: "Your key opens your door only; ring three times, one pizza." },
+  { n: "12", t: "11 break-fix drills", d: "★★ → ★★★★★", time: "15–40 min each", sprint: "6–7", ticket: "MOB-116", cmd: "local/drill.sh list", an: "Fire drills before the real fire." }
+];
