@@ -271,6 +271,7 @@ Rules: the FIRST option in every "o" array is the correct one. Wrong options are
     home: ["Base", viewHome],
     dayone: ["Day One", viewDayOne],
     journey: ["Journey", viewJourney],
+    board: ["Board", viewBoard],
     quiz: ["Myth Busters", viewQuiz],
     drills: ["Incident Drills", viewDrills],
     bugs: ["Bug Hunt", viewBugs],
@@ -573,11 +574,11 @@ ${kv("application_id", "dev.lab.signed-and-shipped")}${kv("rank", r.name, "acc")
           <div><div class="eyebrow">${TICKETS[st.id] ? esc(TICKETS[st.id].id) + " · " : ""}Station ${journeyPos + 1} of ${JOURNEY.length} · ${esc(ph.name)} phase${(() => { const sp = SPRINTS.find(x => x.stations.includes(st.id)); return sp ? ` · Sprint ${sp.n} (${esc(sp.weeks)})` : ""; })()}</div><h2>${esc(st.title)}</h2></div>
           <div class="jdtags">${st.jd.map(j => `<span class="tag">${esc(j)}</span>`).join("")}</div>
         </div>
-        ${TICKETS[st.id] ? `<div class="ticket"><div class="tk-h"><span class="tk-id">${esc(TICKETS[st.id].id)}</span><span>Assigned to you · from ${esc(STORY.lead)}</span></div><p>${esc(TICKETS[st.id].ask)}</p></div>` : ""}
+        ${issueHTML(st)}
         ${TICKETS[st.id] && TICKETS[st.id].needs.length ? `<details class="needs" ${TICKETS[st.id].needs.some(id => !(S.setup || {})["tool:" + id]) ? "open" : ""}><summary>What you need for this ticket (${TICKETS[st.id].needs.length} ${TICKETS[st.id].needs.length > 1 ? "tools" : "tool"})</summary><div class="toolgrid">${TICKETS[st.id].needs.map(id => toolCard(id, S.os || "mac")).join("")}</div></details>` : ""}
         <div class="st-grid">
           <div class="st-main">
-            <h3>What happens</h3><p>${esc(st.what)}</p>
+            <h3>Background: what happens</h3><p>${esc(st.what)}</p>
             <div class="eli"><div class="eli-k">Explain it like I'm 10</div><p>${esc(st.analogy)}</p></div>
             ${st.pic ? `<h3>The picture</h3><div class="diagram mini">${flowSVG(DIAGRAMS.find(d => d.id === st.pic))}</div><p class="sub"><button type="button" class="linkbtn" data-bp="${st.pic}">Open the full blueprint: ${esc(DIAGRAMS.find(d => d.id === st.pic).t)} →</button> It explains every box in order.</p>` : ""}
             <h3>Done when</h3><p class="done-when">${esc(st.done)}</p>
@@ -1621,6 +1622,54 @@ ${kv("application_id", "dev.lab.signed-and-shipped")}${kv("rank", r.name, "acc")
     $$("[data-os]", v).forEach(b => b.addEventListener("click", () => { S.os = b.dataset.os; save(); viewDayOne(v); }));
     bindToolChecks(v, () => viewDayOne(v));
     $("#toTicket", v).addEventListener("click", () => { journeyPos = 0; go("journey"); });
+  }
+
+
+  /* =========================================================
+     JIRA-STYLE issues + board
+     ========================================================= */
+  const TYPE_ICON = { Story: "▣", Bug: "●", Spike: "◆", Task: "✓", Incident: "▲" };
+  function sprintOf(id) { const sp = SPRINTS.find(x => x.stations.includes(id)); return sp ? sp.n : null; }
+  function statusOf(id) { if (S.journey[id]) return "Done"; const i = JOURNEY.findIndex(s => !S.journey[s.id]); return JOURNEY[i] && JOURNEY[i].id === id ? "In Progress" : "To Do"; }
+  function issueHTML(st) {
+    const tk = TICKETS[st.id], is = ISSUE[st.id]; if (!tk || !is) return "";
+    const ep = EPICS[st.phase], sp = sprintOf(st.id), status = statusOf(st.id);
+    return `<div class="jira">
+      <div class="jr-top"><span class="jr-type t-${is.type.toLowerCase()}">${TYPE_ICON[is.type] || "▣"} ${esc(is.type)}</span><span class="jr-key">${esc(tk.id)}</span><span class="jr-status s-${status.replace(" ", "").toLowerCase()}">${esc(status)}</span></div>
+      <h2 class="jr-sum">${esc(st.title)}</h2>
+      <div class="jr-fields">
+        <div><span>Epic (feature)</span><b class="jr-epic c-${ep.color}">${esc(ep.key)} · ${esc(ep.name)}</b></div>
+        <div><span>Sprint</span><b>${sp ? "MOB Sprint " + sp : "Backlog"}</b></div>
+        <div><span>Story points</span><b>${is.pts}</b></div>
+        <div><span>Priority</span><b>${esc(is.prio)}</b></div>
+        <div><span>Assignee</span><b>${esc(JIRA.assignee)}</b></div>
+        <div><span>Reporter</span><b>${esc(JIRA.reporter)}</b></div>
+        <div class="wide"><span>Labels</span><b>${is.labels.map(l => `<i class="jr-label">${esc(l)}</i>`).join("")}</b></div>
+      </div>
+      <div class="jr-sec"><div class="bp-k">User story</div><p class="jr-story">${esc(is.story)}</p></div>
+      <div class="jr-sec"><div class="bp-k">Description (from ${esc(JIRA.reporter.split(" ")[0])})</div><p>${esc(tk.ask)}</p></div>
+      <div class="jr-sec"><div class="bp-k">Acceptance criteria</div><ul class="jr-ac">${is.ac.map(a => `<li>${esc(a)}</li>`).join("")}</ul></div>
+      <div class="jr-sec"><div class="bp-k">Sub-tasks</div><ol class="jr-sub">${is.sub.map((t, i) => `<li><span class="jr-key">${esc(tk.id)}-${i + 1}</span> ${esc(t)}</li>`).join("")}</ol></div>
+    </div>`;
+  }
+  let boardSprint = "all";
+  function viewBoard(v) {
+    const cols = ["To Do", "In Progress", "Done"];
+    const items = JOURNEY.map((st, i) => ({ st, i, is: ISSUE[st.id], tk: TICKETS[st.id], sp: sprintOf(st.id), status: statusOf(st.id) })).filter(x => boardSprint === "all" || String(x.sp) === boardSprint);
+    const pts = items.reduce((a, x) => a + x.is.pts, 0), donePts = items.filter(x => x.status === "Done").reduce((a, x) => a + x.is.pts, 0);
+    v.innerHTML = `
+      <header class="vhead"><div class="eyebrow">Board · ${esc(JIRA.project)} (${esc(JIRA.projectName)})</div><h1 class="vtitle">Your sprint board</h1>
+      <p class="lede">Every Journey ticket as a Jira-style issue. Epics are features, issues are user stories (plus a bug, a spike and an incident), each with story points and a sprint. Finish a ticket's checkpoint to move it to Done.</p></header>
+      <div class="filters" role="group" aria-label="Sprint"><button type="button" class="chip ${boardSprint === "all" ? "on" : ""}" data-sp="all">All sprints</button>${SPRINTS.map(sp => `<button type="button" class="chip ${boardSprint === String(sp.n) ? "on" : ""}" data-sp="${sp.n}">Sprint ${sp.n}</button>`).join("")}</div>
+      <div class="jr-burn"><b>${donePts}</b> of ${pts} story points done${boardSprint !== "all" ? ` · ${esc(SPRINTS.find(x => String(x.n) === boardSprint).goal)}` : ""}<span class="jr-bar"><i style="width:${pts ? Math.round(donePts / pts * 100) : 0}%"></i></span></div>
+      <div class="jr-epics">${Object.entries(EPICS).map(([ph, e]) => `<span class="jr-epic c-${e.color}">${esc(e.key)} · ${esc(e.name)}</span>`).join("")}</div>
+      <div class="board">${cols.map(c => `<div class="bcol"><div class="bcol-h">${c} <span>${items.filter(x => x.status === c).length}</span></div>
+        ${items.filter(x => x.status === c).map(x => `<button type="button" class="bcard2" data-i="${x.i}">
+          <span class="bc-sum">${esc(x.st.title)}</span>
+          <span class="jr-epic c-${EPICS[x.st.phase].color} small">${esc(EPICS[x.st.phase].name)}</span>
+          <span class="bc-foot"><span class="jr-type t-${x.is.type.toLowerCase()}">${TYPE_ICON[x.is.type]}</span><span class="jr-key">${esc(x.tk.id)}</span><span class="bc-sp">S${x.sp}</span><span class="bc-pts">${x.is.pts}</span></span></button>`).join("") || `<p class="sub">Nothing here.</p>`}</div>`).join("")}</div>`;
+    $$("[data-sp]", v).forEach(b => b.addEventListener("click", () => { boardSprint = b.dataset.sp; viewBoard(v); }));
+    $$(".bcard2", v).forEach(b => b.addEventListener("click", () => { const firstOpen = JOURNEY.findIndex(s => !S.journey[s.id]); const i = +b.dataset.i; journeyPos = (firstOpen === -1 || i <= firstOpen) ? i : firstOpen; if (i > journeyPos) toast("Finish earlier tickets first; showing the next open one."); go("journey"); }));
   }
 
   /* ---------- boot ---------- */
