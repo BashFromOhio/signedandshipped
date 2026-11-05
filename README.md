@@ -17,6 +17,6 @@ A browser game for learning Mobile DevOps release engineering in the order it re
 This is a **portfolio learning lab** with fictional organizations and synthetic data.
 - The reference pipeline is a template: tool versions are `<VERIFY>` placeholders, actions need pinning to commit SHAs, and app code isn't included. Its workflows sit under `reference/`, so they don't run in this repo.
 - Nothing here has been run against real App Store Connect or Google Play accounts.
-- AI buttons in the game work when it's opened as a Claude artifact. On GitHub Pages they show as unavailable; everything else works.
+- AI buttons run directly when the game is opened as a Claude artifact. On GitHub Pages each AI button builds the prompt and offers **Copy prompt** / **Open in Claude** instead.
 
 Track real progress in [`reference/routeready-mobile-devops/docs/progress.md`](reference/routeready-mobile-devops/docs/progress.md) using IMPLEMENTED / VERIFIED / SIMULATED / BLOCKED.
