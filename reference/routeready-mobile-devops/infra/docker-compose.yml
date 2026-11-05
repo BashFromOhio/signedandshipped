@@ -1,0 +1,30 @@
+# Local lab: API + Postgres + synthetic GPS producer. No cloud account needed.
+services:
+  db:
+    image: postgres:<VERIFY>
+    environment:
+      POSTGRES_PASSWORD: lab-only-not-a-secret
+      POSTGRES_DB: routeready
+    ports: ["5432:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      retries: 10
+  api:
+    build: ../services/api
+    environment:
+      DATABASE_URL: jdbc:postgresql://db:5432/routeready
+    ports: ["8080:8080"]
+    depends_on:
+      db: { condition: service_healthy }
+    healthcheck:   # readiness includes the DB; liveness (in the app) does not (drill 13)
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health/readiness"]
+      interval: 5s
+      retries: 20
+  producer:
+    build: ../services/producer
+    environment:
+      API_URL: http://api:8080
+      PRODUCER_TOKEN: lab-only-producer-token
+    depends_on:
+      api: { condition: service_healthy }

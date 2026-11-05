@@ -1,0 +1,4 @@
+source "https://rubygems.org"
+
+# Exact versions live in Gemfile.lock (commit it). Upgrade through a reviewed toolchain PR.
+gem "fastlane"

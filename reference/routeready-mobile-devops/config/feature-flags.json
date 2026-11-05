@@ -1,0 +1,9 @@
+{
+  "defaults": {
+    "eta_confidence_enabled": false
+  },
+  "cohorts": {
+    "eta_confidence_enabled": ["beta-district-1"]
+  },
+  "notes": "Flags control exposure, never authorization. New behavior defaults OFF so a crash before flags load stays dark (drill 16)."
+}

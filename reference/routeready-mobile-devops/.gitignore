@@ -1,0 +1,17 @@
+# Signing material never enters git
+*.p12
+*.cer
+*.mobileprovision
+*.keystore
+*.jks
+*.p8
+.env
+.env.*
+!.env.example
+fastlane/report.xml
+fastlane/README.md
+build/
+**/build/
+.gradle/
+node_modules/
+DerivedData/

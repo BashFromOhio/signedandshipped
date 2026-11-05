@@ -1,0 +1,2 @@
+app_identifier("org.routeready.parent")   # fictional lab bundle ID; must match your App ID
+# team_id comes from env (FASTLANE_TEAM_ID) so it never sits in source

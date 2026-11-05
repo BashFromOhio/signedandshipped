@@ -1,0 +1,57 @@
+# Trusted build on main: immutable backend image by digest, staging deploy, smoke tests.
+# Merging to main is NOT an app-store release. Journey station 5 · Bug Hunt b3 · Drill 13
+name: main
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  packages: write        # push the API image to GHCR
+  id-token: write        # optional: cloud OIDC for the staging deploy (no long-lived cloud keys)
+
+concurrency:
+  group: main-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  api-image:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - uses: actions/checkout@<pin-full-commit-sha> # v4.x
+      - uses: docker/login-action@<pin-full-commit-sha> # v3.x
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: build
+        uses: docker/build-push-action@<pin-full-commit-sha> # v6.x
+        with:
+          context: services/api
+          push: true
+          # One explicit reference, built and pushed. Tag = commit SHA, never :latest.
+          tags: ghcr.io/${{ github.repository_owner }}/routeready-api:${{ github.sha }}
+      - name: Record digest
+        run: |
+          echo "image=ghcr.io/${{ github.repository_owner }}/routeready-api@${{ steps.build.outputs.digest }}" | tee build-image.txt
+      - uses: actions/upload-artifact@<pin-full-commit-sha> # v4.x
+        with:
+          name: api-image-${{ github.sha }}
+          path: build-image.txt
+          retention-days: 90
+
+  staging:
+    needs: api-image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: staging
+    steps:
+      - uses: actions/checkout@<pin-full-commit-sha> # v4.x
+      - name: Deploy the verified digest (not a tag)
+        run: ./scripts/deploy-staging.sh "ghcr.io/${{ github.repository_owner }}/routeready-api@${{ needs.api-image.outputs.digest }}"
+      - name: Smoke tests against staging
+        run: ./scripts/smoke.sh "${{ vars.STAGING_API_URL }}"

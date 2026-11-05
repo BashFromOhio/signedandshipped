@@ -1,0 +1,7 @@
+{
+  "_comment": "Optional Expo/EAS experiment only (drill 20). runtimeVersion from a native fingerprint means a native dependency change produces a new runtime, so OTA updates can't reach binaries that lack the native code.",
+  "expo": {
+    "runtimeVersion": { "policy": "fingerprint" },
+    "updates": { "url": "https://u.expo.dev/<project-id>" }
+  }
+}

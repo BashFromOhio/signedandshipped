@@ -1,0 +1,7 @@
+# Read-only in CI. Certificates are created ONCE by an authorized admin, locally:
+#   bundle exec fastlane match appstore      (admin machine, not CI)
+git_url(ENV["MATCH_GIT_URL"])
+storage_mode("git")
+type("appstore")
+app_identifier(["org.routeready.parent"])
+readonly(true)

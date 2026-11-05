@@ -1,0 +1,130 @@
+# Lane contract (playbook): verify / package / beta / promote per platform.
+# CI never creates, regenerates or revokes signing assets.
+# Note: `sh` runs from the fastlane/ folder, so scripts are called with ../
+# Journey stations 3, 8, 10, 12 · Bug Hunt b4, b5 · Drills 1, 2, 3, 4
+
+default_platform(:ios)
+
+def asc_key
+  app_store_connect_api_key(
+    key_id: ENV.fetch("ASC_KEY_ID"),
+    issuer_id: ENV.fetch("ASC_ISSUER_ID"),
+    key_content: ENV.fetch("ASC_KEY_P8_BASE64"),
+    is_key_content_base64: true
+  )
+end
+
+platform :ios do
+  desc "Simulator build + tests. No signing secrets. Saves the xcresult."
+  lane :verify do |opts|
+    destination = opts[:destination] || UI.user_error!("pass destination: from scripts/pick-simulator.sh")
+    run_tests(
+      project: "apps/ios/RouteReady.xcodeproj",
+      scheme: "RouteReady",
+      destination: destination,
+      result_bundle: true,
+      output_directory: "build/ios",
+      code_coverage: true
+    )
+  end
+
+  desc "Trusted release only. Temp keychain, readonly match, signed IPA + dSYMs, manifest."
+  lane :package do |opts|
+    build_number = opts[:build_number] || UI.user_error!("allocate first: scripts/allocate-build-number.sh")
+    sh("../scripts/release-preflight.sh", "package", "ios", build_number.to_s)
+    setup_ci                                   # temporary keychain on CI; puts match in readonly mode
+    match(type: "appstore", readonly: true)    # fetch existing cert + profile only
+    sh("../scripts/signing-preflight-ios.sh")  # bundle ID, team, entitlements vs decoded profile (drill 1)
+    increment_build_number(xcodeproj: "apps/ios/RouteReady.xcodeproj", build_number: build_number)
+    build_app(
+      project: "apps/ios/RouteReady.xcodeproj",
+      scheme: "RouteReady",
+      export_method: "app-store",
+      output_directory: "build/ios",
+      output_name: "RouteReady.ipa",
+      include_symbols: true
+    )
+    sh("../scripts/write-manifest.sh", "ios", "../build/ios/RouteReady.ipa", build_number.to_s)
+  end
+
+  desc "Upload an EXISTING IPA. Never rebuilds. Records 'uploaded', not 'released'."
+  lane :beta do |opts|
+    ipa = opts[:ipa] || UI.user_error!("pass ipa: produced by the package lane")
+    manifest = opts[:manifest] || UI.user_error!("pass manifest:")
+    sh("../scripts/verify-manifest.sh", "../#{ipa}", "../#{manifest}")
+    asc_key
+    upload_to_testflight(ipa: ipa, skip_waiting_for_build_processing: true)
+    sh("../scripts/record-state.sh", "ios", "uploaded")
+  end
+
+  desc "Submit an existing processed build for App Review. No binary upload."
+  lane :promote do |opts|
+    asc_key
+    deliver(
+      build_number: opts[:build_number].to_s,
+      submit_for_review: true,
+      skip_binary_upload: true,
+      skip_metadata: true,
+      skip_screenshots: true,
+      phased_release: true,          # Apple's fixed 7-day schedule for automatic updates
+      automatic_release: false,      # you release after approval
+      force: true
+    )
+    sh("../scripts/record-state.sh", "ios", "in_review")
+  end
+end
+
+platform :android do
+  desc "Lint + unit tests + debug build. No signing secrets."
+  lane :verify do
+    gradle(project_dir: "apps/android", tasks: ["lint", "testDebugUnitTest", "assembleDebug"])
+  end
+
+  desc "Trusted release only. Signed AAB (upload key) + mapping, fingerprint preflight, manifest."
+  lane :package do |opts|
+    version_code = opts[:version_code] || UI.user_error!("allocate first: scripts/allocate-build-number.sh")
+    sh("../scripts/release-preflight.sh", "package", "android", version_code.to_s)
+    gradle(
+      project_dir: "apps/android",
+      task: "bundle",
+      build_type: "Release",
+      properties: { "routereadyVersionCode" => version_code.to_s }
+    )
+    aab = "../apps/android/app/build/outputs/bundle/release/app-release.aab"
+    sh("../scripts/verify-upload-cert.sh", aab)   # drill 3
+    sh("../scripts/write-manifest.sh", "android", aab, version_code.to_s)
+  end
+
+  desc "Upload an EXISTING AAB to the internal track."
+  lane :beta do |opts|
+    aab = opts[:aab] || UI.user_error!("pass aab:")
+    manifest = opts[:manifest] || UI.user_error!("pass manifest:")
+    sh("../scripts/verify-manifest.sh", "../#{aab}", "../#{manifest}")
+    upload_to_play_store(
+      aab: aab,
+      track: "internal",
+      json_key_data: ENV.fetch("PLAY_JSON_KEY"),
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true
+    )
+    sh("../scripts/record-state.sh", "android", "uploaded")
+  end
+
+  desc "Promote the existing versionCode from internal to production as a staged rollout."
+  lane :promote do |opts|
+    upload_to_play_store(
+      track: "internal",
+      track_promote_to: "production",
+      version_code: opts[:build_number].to_i,
+      rollout: (opts[:rollout] || "0.1").to_s,
+      json_key_data: ENV.fetch("PLAY_JSON_KEY"),
+      skip_upload_aab: true,
+      skip_upload_apk: true,
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true
+    )
+    sh("../scripts/record-state.sh", "android", "staged_rollout")
+  end
+end

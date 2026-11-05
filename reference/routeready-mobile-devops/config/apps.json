@@ -1,0 +1,9 @@
+{
+  "marketing_version": "1.5.0",
+  "ios": { "application_id": "org.routeready.parent" },
+  "android": { "application_id": "org.routeready.parent" },
+  "environments": {
+    "staging": { "api_base_url": "https://staging-api.routeready.example" },
+    "production": { "api_base_url": "https://api.routeready.example" }
+  }
+}

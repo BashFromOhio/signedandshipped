@@ -1,0 +1,80 @@
+# Explicit Android beta release to the Play internal track.
+# Journey stations 7-10 · Drills 3, 4
+name: release-android
+
+on:
+  workflow_dispatch:
+    inputs:
+      upload:
+        description: "Upload to the internal track (off = package and validate only)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-android-routeready
+  cancel-in-progress: false
+
+jobs:
+  package:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment: release-android
+    outputs:
+      version_code: ${{ steps.alloc.outputs.number }}
+    steps:
+      - uses: actions/checkout@<pin-full-commit-sha> # v4.x
+      - uses: actions/setup-java@<pin-full-commit-sha> # v4.x
+        with: { distribution: temurin, java-version: "<VERIFY>" }
+      - uses: gradle/actions/setup-gradle@<pin-full-commit-sha> # v4.x
+      - uses: ruby/setup-ruby@<pin-full-commit-sha> # v1.x
+        with: { bundler-cache: true }
+      - id: alloc
+        run: echo "number=$(./scripts/allocate-build-number.sh android org.routeready.parent "$GITHUB_SHA")" >> "$GITHUB_OUTPUT"
+      - name: Decode upload keystore to a temp file
+        env:
+          UPLOAD_KEYSTORE_BASE64: ${{ secrets.UPLOAD_KEYSTORE_BASE64 }}
+        run: |
+          umask 077
+          echo "$UPLOAD_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/upload.jks"
+          echo "ROUTEREADY_UPLOAD_KEYSTORE=$RUNNER_TEMP/upload.jks" >> "$GITHUB_ENV"
+      - name: Package signed AAB + mapping (fingerprint preflight blocks the wrong key)
+        env:
+          ROUTEREADY_UPLOAD_STORE_PASSWORD: ${{ secrets.UPLOAD_STORE_PASSWORD }}
+          ROUTEREADY_UPLOAD_KEY_ALIAS: ${{ secrets.UPLOAD_KEY_ALIAS }}
+          ROUTEREADY_UPLOAD_KEY_PASSWORD: ${{ secrets.UPLOAD_KEY_PASSWORD }}
+          EXPECTED_UPLOAD_CERT_SHA256: ${{ vars.EXPECTED_UPLOAD_CERT_SHA256 }}
+        run: bundle exec fastlane android package version_code:${{ steps.alloc.outputs.number }}
+      - uses: actions/upload-artifact@<pin-full-commit-sha> # v4.x
+        with:
+          name: android-release-${{ steps.alloc.outputs.number }}
+          path: |
+            apps/android/app/build/outputs/bundle/release/app-release.aab
+            apps/android/app/build/outputs/mapping/release/mapping.txt
+            evidence/release-manifest.json
+          retention-days: 90
+      - name: Delete keystore
+        if: always()
+        run: rm -f "$RUNNER_TEMP/upload.jks"
+
+  beta:
+    needs: package
+    if: inputs.upload
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: release-android
+    steps:
+      - uses: actions/checkout@<pin-full-commit-sha> # v4.x
+      - uses: ruby/setup-ruby@<pin-full-commit-sha> # v1.x
+        with: { bundler-cache: true }
+      - uses: actions/download-artifact@<pin-full-commit-sha> # v4.x
+        with:
+          name: android-release-${{ needs.package.outputs.version_code }}
+          path: build/android
+      - name: Upload the EXISTING AAB to the internal track
+        env:
+          PLAY_JSON_KEY: ${{ secrets.PLAY_JSON_KEY }}
+        run: bundle exec fastlane android beta aab:build/android/app/build/outputs/bundle/release/app-release.aab manifest:build/android/evidence/release-manifest.json

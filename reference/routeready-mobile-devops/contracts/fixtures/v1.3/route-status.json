@@ -1,0 +1,7 @@
+{
+  "_comment": "Recorded response shape the installed 1.3 client decodes. Must keep passing (drill 11).",
+  "route_id": "r-1",
+  "status": "DELAYED",
+  "delay_minutes": 4,
+  "observed_at": "2026-09-08T13:02:10Z"
+}

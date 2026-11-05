@@ -1,0 +1,86 @@
+openapi: 3.0.3
+info:
+  title: RouteReady API (fictional portfolio lab)
+  version: v1
+  description: |
+    Additive changes only. Never rename, remove or change the type of a field
+    installed clients read. App marketing versions are independent of this contract.
+paths:
+  /api/v1/capabilities:
+    get:
+      summary: Features the server supports (clients adapt; never used for authorization)
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [contract]
+                properties:
+                  contract: { type: string, example: v1 }
+                  features: { type: array, items: { type: string }, example: [eta_confidence] }
+  /api/v1/routes:
+    get:
+      summary: Routes the caller is authorized to see
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/Route" } }
+  /api/v1/routes/{id}/status:
+    get:
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RouteStatus" }
+        "404": { description: not found or not authorized }
+  /api/v1/telemetry:
+    post:
+      summary: Producer-authenticated GPS event ingestion (idempotent by event_id)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TelemetryEvent" }
+      responses:
+        "202": { description: accepted (new or duplicate) }
+        "409": { description: older than current position; stored, not applied }
+  /api/v1/alerts:
+    get:
+      responses:
+        "200": { description: ok }
+components:
+  schemas:
+    Route:
+      type: object
+      required: [route_id, name]
+      properties:
+        route_id: { type: string }
+        name: { type: string }
+    RouteStatus:
+      type: object
+      required: [route_id, status, observed_at]
+      properties:
+        route_id: { type: string }
+        status: { type: string, enum: [ON_TIME, DELAYED] }
+        delay_minutes: { type: integer }
+        observed_at: { type: string, format: date-time }
+        is_stale: { type: boolean, description: "Added in contract rev 3. Additive." }
+        eta_confidence: { type: number, nullable: true, description: "Optional. Behind eta_confidence_enabled." }
+    TelemetryEvent:
+      type: object
+      required: [event_id, bus_id, route_id, observed_at, sequence, boot_epoch, latitude, longitude]
+      properties:
+        event_id: { type: string }
+        bus_id: { type: string }
+        route_id: { type: string }
+        observed_at: { type: string, format: date-time }
+        sequence: { type: integer }
+        boot_epoch: { type: string, description: "Changes when the producer reboots (drill 12)" }
+        latitude: { type: number }
+        longitude: { type: number }

@@ -1,0 +1,42 @@
+# Production promotion: approval gate, promote the existing candidate, never recompile.
+# Journey stations 11-13 · Drill 15
+name: promote
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        type: choice
+        options: [ios, android]
+      build_number:
+        description: "Existing build number / versionCode to promote"
+        required: true
+      rollout:
+        description: "Android staged rollout fraction (e.g. 0.1). iOS uses Apple's phased release."
+        default: "0.1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: promote-${{ inputs.platform }}-routeready
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    runs-on: ${{ inputs.platform == 'ios' && 'macos-15' || 'ubuntu-24.04' }}
+    timeout-minutes: 30
+    environment: production         # required reviewers configured on this environment
+    steps:
+      - uses: actions/checkout@<pin-full-commit-sha> # v4.x
+      - uses: ruby/setup-ruby@<pin-full-commit-sha> # v1.x
+        with: { bundler-cache: true }
+      - name: Release preflight (candidate, compatibility evidence, approvals)
+        run: ./scripts/release-preflight.sh promote "${{ inputs.platform }}" "${{ inputs.build_number }}"
+      - name: Promote
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+          PLAY_JSON_KEY: ${{ secrets.PLAY_JSON_KEY }}
+        run: bundle exec fastlane ${{ inputs.platform }} promote build_number:${{ inputs.build_number }} rollout:${{ inputs.rollout }}

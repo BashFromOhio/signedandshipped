@@ -1,0 +1,162 @@
+# PR CI: untrusted code. Read-only token, no secrets, no signing, no deploys.
+# Journey stations 3-4 · Drills 5-10 · Bug Hunt b1, b2, b10, b11
+name: pr-ci
+
+on:
+  pull_request:
+  merge_group:            # merge queue support (drill 9)
+
+permissions:
+  contents: read          # least privilege; forks get no secrets on pull_request
+
+concurrency:
+  group: pr-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true   # superseded PR runs are cancelled (never do this for releases)
+
+jobs:
+  changes:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      ios: ${{ steps.f.outputs.ios }}
+      android: ${{ steps.f.outputs.android }}
+      api: ${{ steps.f.outputs.api }}
+      web: ${{ steps.f.outputs.web }}
+    steps:
+      - uses: actions/checkout@<pin-full-commit-sha> # v4.x
+      - uses: dorny/paths-filter@<pin-full-commit-sha> # v3.x
+        id: f
+        with:
+          # Shared inputs (contracts, workflows, lanes, locks, scripts) trigger EVERY client.
+          filters: |
+            shared: &shared
+              - 'contracts/**'
+              - '.github/workflows/**'
+              - 'fastlane/**'
+              - 'Gemfile.lock'
+              - 'scripts/**'
+              - 'config/**'
+            ios:
+              - *shared
+              - 'apps/ios/**'
+            android:
+              - *shared
+              - 'apps/android/**'
+              - 'gradle/**'
+            api:
+              - *shared
+              - 'services/api/**'
+            web:
+              - *shared
+              - 'apps/dispatcher-web/**'
+
+  ios:
+    needs: changes
+    if: needs.changes.outputs.ios == 'true'
+    runs-on: macos-15            # pinned image; verify against docs/toolchain.md
+    timeout-minutes: 45
+    env:
+      XCODE_PATH: /Applications/Xcode_<VERIFY>.app   # from docs/toolchain.md
+    steps:
+      - uses: actions/checkout@<pin-full-commit-sha> # v4.x
+      - run: sudo xcode-select -s "$XCODE_PATH"
+      - uses: ruby/setup-ruby@<pin-full-commit-sha> # v1.x
+        with:
+          bundler-cache: true      # keyed on Gemfile.lock + Ruby version
+      - name: Record toolchain
+        run: ./scripts/print-toolchain.sh ios | tee build-toolchain-ios.txt
+      - name: Simulator build + tests (no signing)
+        run: bundle exec fastlane ios verify destination:"$(./scripts/pick-simulator.sh)"
+      - uses: actions/upload-artifact@<pin-full-commit-sha> # v4.x
+        if: always()
+        with:
+          name: ios-verify-${{ github.run_attempt }}
+          path: |
+            build/ios/**/*.xcresult
+            build-toolchain-ios.txt
+          retention-days: 14
+
+  android:
+    needs: changes
+    if: needs.changes.outputs.android == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@<pin-full-commit-sha> # v4.x
+      - uses: actions/setup-java@<pin-full-commit-sha> # v4.x
+        with:
+          distribution: temurin
+          java-version: "<VERIFY>"   # must match the AGP requirement in docs/toolchain.md (drill 6)
+      - uses: gradle/actions/wrapper-validation@<pin-full-commit-sha> # v4.x — rejects a tampered gradle-wrapper.jar
+      - uses: gradle/actions/setup-gradle@<pin-full-commit-sha> # v4.x — cache keyed on wrapper, lock and build files (drill 7)
+        with:
+          cache-read-only: true    # PRs read caches; only trusted main writes them
+      - uses: ruby/setup-ruby@<pin-full-commit-sha> # v1.x
+        with:
+          bundler-cache: true
+      - run: ./scripts/print-toolchain.sh android | tee build-toolchain-android.txt
+      - run: bundle exec fastlane android verify
+      - uses: actions/upload-artifact@<pin-full-commit-sha> # v4.x
+        if: always()
+        with:
+          name: android-verify-${{ github.run_attempt }}
+          path: |
+            apps/android/app/build/reports/**
+            build-toolchain-android.txt
+          retention-days: 14
+
+  api:
+    needs: changes
+    if: needs.changes.outputs.api == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:<VERIFY>
+        env:
+          POSTGRES_PASSWORD: lab-only-not-a-secret
+          POSTGRES_DB: routeready
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@<pin-full-commit-sha> # v4.x
+        with:
+          fetch-depth: 0           # contract check diffs against the merge base
+      - uses: actions/setup-java@<pin-full-commit-sha> # v4.x
+        with:
+          distribution: temurin
+          java-version: "<VERIFY>"
+      - name: Contract compatibility (previous + current clients)
+        run: ./scripts/contract-check.sh "origin/${{ github.base_ref || 'main' }}"
+      - name: Unit + integration tests
+        run: ./services/api/gradlew -p services/api test integrationTest
+        env:
+          DATABASE_URL: jdbc:postgresql://localhost:5432/routeready
+
+  web:
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@<pin-full-commit-sha> # v4.x
+      - uses: actions/setup-node@<pin-full-commit-sha> # v4.x
+        with:
+          node-version-file: apps/dispatcher-web/.nvmrc
+          cache: npm
+          cache-dependency-path: apps/dispatcher-web/package-lock.json
+      - run: npm ci && npm test
+        working-directory: apps/dispatcher-web
+
+  # The ONLY required status check. Runs always; fails if anything that applied failed or was cancelled.
+  ci-gate:
+    if: always()
+    needs: [changes, ios, android, api, web]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@<pin-full-commit-sha> # v4.x
+      - run: ./scripts/gate.sh
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
